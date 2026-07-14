@@ -1,0 +1,222 @@
+schema_version: data_module_v2
+module_id: dashboard_top_shop
+module_name: Top Shop 排名
+module_type: ranking
+status: active
+owner: CateMate
+last_updated: "2026-07-09"
+
+business_purpose:
+  description: Top Shop 头部卖家排名，展示 MTD GMV/订单、广告/直播/活动等经营贡献及集中度。
+  typical_questions:
+    - 用户明确提到 DECK Part 5 / top shop 时的头部卖家分析？
+    - Top Shop 按 MTD ADGMV 排名如何？
+    - 头部卖家广告、直播、活动、CFS 贡献如何？
+    - 某类目下 CNRM 管理店铺表现如何？
+  decision_support:
+    - 头部卖家竞争格局
+    - 渠道经营策略对标
+  not_suitable_for:
+    - 全量市场结构推断（榜单为样本）
+    - 关键词或商品 listing 分析
+    - 其他 DECK Part（Part 1-4、6-7）的需求
+
+lineage:
+  source_workbook_pattern: "*品类数据看板*.xlsx"
+  source_workbook_name: 2026 SPH 品类数据看板.xlsx
+  formula_sheet: DECK
+  source_deck_part: "DECK Part 5"
+  source_tables:
+    - table_id: dashboard_top_shop
+      source_sheet: top shop
+      processed_table: source_tables/dashboard_top_shop.csv
+      role: primary_top_shop_ranking
+      extraction_rule: 从 top shop sheet 抽取榜单数据
+      aggregation_rule: 按 update_date、grass_region、类目、shop_id 呈现 MTD 指标
+
+data_grain:
+  time_grain: snapshot
+  primary_grain:
+    - update_date
+    - grass_region
+    - shop_id
+  category_levels:
+    - L1
+    - L2
+    - L3
+  default_filters:
+    - category
+    - site
+    - time_range
+
+fields:
+  dimensions:
+    - field: update_date
+      meaning: 数据更新日期
+      role: time
+      required: true
+    - field: grass_region
+      meaning: 站点/区域
+      role: site
+      required: true
+    - field: cb_level1_global_be_category
+      meaning: 一级类目
+      role: category_l1
+      required: false
+    - field: level2_global_be_category
+      meaning: 二级类目
+      role: category_l2
+      required: false
+    - field: level3_global_be_category
+      meaning: 三级类目
+      role: category_l3
+      required: false
+    - field: shop_id
+      meaning: 店铺 ID
+      role: seller
+      required: true
+    - field: shop_link
+      meaning: 店铺链接
+      role: seller
+      required: false
+    - field: ggp_account_name
+      meaning: GGP 账户名
+      role: seller
+      required: false
+    - field: is_cnrm_managed
+      meaning: 是否 CNRM 管理
+      role: seller
+      required: false
+    - field: user_name
+      meaning: 卖家用户名
+      role: seller
+      required: false
+  metrics:
+    - field: mtd_adgmv_usd(SUM)
+      meaning: MTD ADGMV（美元）
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: mtd_ado(SUM)
+      meaning: MTD ADO
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: mtd_ls_ams_ado(SUM)
+      meaning: 直播 AMS ADO
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: mtd_ams_adgmv_usd(SUM)
+      meaning: AMS ADGMV
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: mtd_ls_adgmv_usd(SUM)
+      meaning: 直播 ADGMV
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: mtd_campaign_adgmv_usd(SUM)
+      meaning: 活动 ADGMV
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: mtd_ads_adgmv_usd(SUM)
+      meaning: 广告 ADGMV
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: mtd_cfs_adgmv_usd(SUM)
+      meaning: CFS ADGMV
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+
+derived_metrics: []
+
+default_charts:
+  - chart_intent: top_shop_table
+    default_chart_type: table
+    title_template: "{category} Top Shop 排名"
+    x_axis: null
+    y_axis:
+      - mtd_adgmv_usd(SUM)
+      - mtd_ado(SUM)
+    series: null
+    dimensions:
+      - shop_id
+      - user_name
+      - grass_region
+    sort_rule: metric_desc
+    top_n: 50
+    dedupe_group: null
+    notes:
+      - 默认按 mtd_adgmv_usd(SUM) 降序，top_n=50
+  - chart_intent: channel_contribution
+    default_chart_type: bar
+    title_template: "{category} Top Shop 渠道贡献"
+    x_axis: user_name
+    y_axis:
+      - mtd_ads_adgmv_usd(SUM)
+      - mtd_campaign_adgmv_usd(SUM)
+      - mtd_ls_adgmv_usd(SUM)
+      - mtd_cfs_adgmv_usd(SUM)
+    series: null
+    dimensions:
+      - user_name
+    sort_rule: metric_desc
+    top_n: 20
+    dedupe_group: null
+    notes:
+      - 指标存在时可用 bar 或 share 展示渠道贡献
+
+chart_rules:
+  dedupe:
+    enabled: false
+    dedupe_group: null
+    prefer: []
+  sorting:
+    default: metric_desc
+    special: {}
+  missing_value_policy:
+    do_not_fill_null: true
+    do_not_invent_yoy: true
+    explain_nulls: true
+
+planning_hints:
+  explicit_triggers:
+    - DECK Part 5
+    - Deck Part 5
+    - top shop
+  use_when:
+    - 用户明确提到 DECK Part 5 / top shop（强命中信号）
+    - 用户问 Top Shop、头部卖家、店铺排名
+  avoid_when:
+    - 用户仅泛泛提到「DECK」但未说明 Part 5
+    - 需要全量市场卖家结构而非榜单样本
+  preferred_over: []
+  can_combine_with:
+    - dashboard_top_listing
+    - dashboard_keywords
+
+limitations:
+  - shop 维度为卖家样本/榜单，不代表完整市场结构
+  - MTD 指标受 update_date 快照限制
+  - 不含关键词或单品 listing 详情

@@ -1,0 +1,116 @@
+# Copy this file to create a new data_module_v2 config.
+# Files starting with "_" are ignored by planning context loader.
+
+schema_version: data_module_v2
+module_id: your_module_id
+module_name: 模块显示名称
+module_type: market_trend
+status: active
+owner: CateMate
+last_updated: "YYYY-MM-DD"
+
+business_purpose:
+  description: 用一句话说明该模块解决什么业务问题。
+  typical_questions:
+    - 示例问题 1
+  decision_support:
+    - 示例决策支持
+  not_suitable_for:
+    - 明确不适用的场景
+
+lineage:
+  source_workbook_pattern: "*example*.xlsx"
+  source_workbook_name: example.xlsx
+  formula_sheet: null
+  source_tables:
+    - table_id: example_table_id
+      source_sheet: Sheet1
+      processed_table: source_tables/example_table_id.csv
+      role: primary_raw
+      extraction_rule: 从 raw sheet 抽取到 processed CSV（见 processed_manifest）
+      aggregation_rule: 按业务需要 groupby 后 sum
+
+data_grain:
+  time_grain: monthly
+  primary_grain:
+    - grass_region
+    - grass_month
+  category_levels:
+    - L1
+    - L2
+    - L3
+  default_filters:
+    - category
+    - site
+    - time_range
+
+fields:
+  dimensions:
+    - field: grass_region
+      meaning: 站点
+      role: site
+      required: true
+    - field: grass_month
+      meaning: 月份
+      role: time
+      required: true
+  metrics:
+    - field: gmv_usd
+      meaning: GMV（美元）
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+
+derived_metrics:
+  - metric_id: aov
+    meaning: 客单价
+    expression: gmv_usd / orders
+    required_fields:
+      - gmv_usd
+      - orders
+    null_rule: orders 为 0 或缺失时 aov 为空，不除以 0
+
+default_charts:
+  - chart_intent: example_trend
+    default_chart_type: trend
+    title_template: "{category} 月度趋势"
+    x_axis: grass_month
+    y_axis:
+      - gmv_usd
+      - orders
+    series: grass_region
+    dimensions:
+      - grass_region
+      - grass_month
+    sort_rule: time_ascending
+    top_n: null
+    dedupe_group: null
+    notes:
+      - 示例说明
+
+chart_rules:
+  dedupe:
+    enabled: false
+    dedupe_group: null
+    prefer: []
+  sorting:
+    default: time_ascending
+    special:
+      Price_Range_USD: price_range_natural_order
+  missing_value_policy:
+    do_not_fill_null: true
+    do_not_invent_yoy: true
+    explain_nulls: true
+
+planning_hints:
+  use_when:
+    - 当用户问题匹配 typical_questions 时
+  avoid_when:
+    - 当所需字段不在 fields 中时
+  preferred_over: []
+  can_combine_with: []
+
+limitations:
+  - 至少写一条模块限制

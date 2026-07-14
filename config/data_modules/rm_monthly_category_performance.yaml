@@ -1,0 +1,180 @@
+schema_version: data_module_v2
+module_id: rm_monthly_category_performance
+module_name: RM 月度类目表现
+module_type: market_trend
+status: active
+owner: CateMate
+last_updated: "2026-07-09"
+
+business_purpose:
+  description: 基于 RM 气泡图 workbook 的长时间窗口类目月度表现，支持站点对比与 L1/L2/L3 层级的 GMV、Orders、AOV 分析。
+  typical_questions:
+    - 某类目在各站点的月度 GMV / Orders 趋势如何？
+    - L1/L2/L3 类目在各站点的 GMV、Orders、客单价表现如何？
+    - 各站点 GMV / Orders 的站点对比排名如何？
+    - 某 L2 下不同 L3 的站点表现如何？
+  decision_support:
+    - 类目优先级与资源投放
+    - 站点扩张或收缩判断
+    - 月度趋势与季节性判断
+  not_suitable_for:
+    - 日度 Shopee/CNCB 渗透与广告贡献（请用 dashboard_daily_cncb_performance）
+    - 价格段分布（请用 dashboard_price_tier_distribution）
+    - Top Shop / 关键词 / Top Listing 榜单分析
+
+lineage:
+  source_workbook_pattern: "*RM*.xlsx"
+  source_workbook_name: SPH 气泡图_月度趋势图 for RM .xlsx
+  formula_sheet: CNCB 中间表 By site
+  source_tables:
+    - table_id: rm_raw_data
+      source_sheet: Raw data
+      processed_table: source_tables/rm_raw_data.csv
+      role: primary_monthly_fact
+      extraction_rule: 从 Raw data sheet 抽取全量行到 processed CSV
+      aggregation_rule: 按 grass_region、类目层级、grass_month 聚合 gmv_usd、orders
+
+data_grain:
+  time_grain: monthly
+  primary_grain:
+    - grass_region
+    - grass_month
+    - cb_level1_global_be_category
+    - level2_global_be_category
+    - level3_global_be_category
+  category_levels:
+    - L1
+    - L2
+    - L3
+  default_filters:
+    - category
+    - site
+    - time_range
+
+fields:
+  dimensions:
+    - field: grass_region
+      meaning: 站点/区域
+      role: site
+      required: true
+    - field: cb_level1_global_be_category
+      meaning: 一级类目
+      role: category_l1
+      required: false
+    - field: level2_global_be_category
+      meaning: 二级类目
+      role: category_l2
+      required: false
+    - field: level3_global_be_category
+      meaning: 三级类目
+      role: category_l3
+      required: false
+    - field: grass_month
+      meaning: 月份（月度粒度）
+      role: time
+      required: true
+  metrics:
+    - field: gmv_usd
+      meaning: GMV（美元）
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: 缺失保持为空，不补零
+    - field: orders
+      meaning: 订单数
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: 缺失保持为空；为 0 时影响 AOV 计算
+
+derived_metrics:
+  - metric_id: aov
+    meaning: 客单价（Average Order Value）
+    expression: gmv_usd / orders
+    required_fields:
+      - gmv_usd
+      - orders
+    null_rule: orders 为 0 或缺失时 aov 为空，不除以 0
+
+default_charts:
+  - chart_intent: monthly_trend
+    default_chart_type: trend
+    title_template: "{category} 各站点月度 GMV/Orders 趋势"
+    x_axis: grass_month
+    y_axis:
+      - gmv_usd
+      - orders
+    series: grass_region
+    dimensions:
+      - grass_region
+      - grass_month
+    sort_rule: time_ascending
+    top_n: null
+    dedupe_group: monthly_market_trend
+    notes:
+      - 与 dashboard_history_market_trend 表达重复时，优先保留时间窗口更长的 rm_raw_data
+  - chart_intent: site_comparison
+    default_chart_type: bar
+    title_template: "{category} 各站点 GMV/Orders 对比"
+    x_axis: grass_region
+    y_axis:
+      - gmv_usd
+      - orders
+    series: null
+    dimensions:
+      - grass_region
+    sort_rule: metric_desc
+    top_n: null
+    dedupe_group: null
+    notes:
+      - 可按选定时间范围汇总后做站点 bar 对比
+  - chart_intent: aov_by_site
+    default_chart_type: bar
+    title_template: "{category} 各站点客单价（AOV）"
+    x_axis: grass_region
+    y_axis:
+      - aov
+    series: null
+    dimensions:
+      - grass_region
+    sort_rule: metric_desc
+    top_n: null
+    dedupe_group: null
+    notes:
+      - aov 为派生指标，orders 为 0 或缺失时为空
+
+chart_rules:
+  dedupe:
+    enabled: true
+    dedupe_group: monthly_market_trend
+    prefer:
+      - longer_time_window
+      - table_id:rm_raw_data
+  sorting:
+    default: time_ascending
+    special: {}
+  missing_value_policy:
+    do_not_fill_null: true
+    do_not_invent_yoy: true
+    explain_nulls: true
+
+planning_hints:
+  use_when:
+    - 用户需要长时间窗口的月度类目趋势
+    - 需要 L1/L2/L3 多层级站点 GMV/Orders/AOV 对比
+    - 与看板历史趋势重复时，默认优先本模块（时间窗口更长）
+  avoid_when:
+    - 用户明确提到 DECK Part 1 / 看板「过去数据」口径的历史趋势（应优先 dashboard_history_market_trend）
+    - 需要日度 CNCB/广告渗透分析
+  preferred_over:
+    - dashboard_history_market_trend
+  can_combine_with:
+    - dashboard_daily_cncb_performance
+    - dashboard_price_tier_distribution
+
+limitations:
+  - 月度粒度，不支持日度趋势
+  - 不含广告、活动、LPP、CFS 等渠道拆分
+  - YoY 需源数据或用户明确提供对比期，不自动发明 YoY

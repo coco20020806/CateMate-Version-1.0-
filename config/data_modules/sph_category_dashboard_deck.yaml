@@ -1,0 +1,139 @@
+# LEGACY / DEPRECATED — 已拆分为 6 个 dashboard v2 子模块，planning agent 请勿选用本模块。
+# 拆分去向见 split_into。
+
+schema_version: data_module_v2
+module_id: sph_category_dashboard_deck
+module_name: 2026 SPH 品类数据看板 DECK（已废弃）
+module_type: legacy_index
+status: deprecated
+owner: CateMate
+last_updated: "2026-07-09"
+
+split_into:
+  - dashboard_history_market_trend
+  - dashboard_daily_cncb_performance
+  - dashboard_price_tier_distribution
+  - dashboard_top_shop
+  - dashboard_keywords
+  - dashboard_top_listing
+
+business_purpose:
+  description: |
+    历史聚合模块，曾将整份 DECK 看板（Part 1–7）作为一个大模块。
+    自 Data Module Schema v2 起已按「一个业务问题一个模块」拆分；请改用 split_into 中的 active 子模块。
+  typical_questions: []
+  decision_support: []
+  not_suitable_for:
+    - 所有新规划 — 请使用 split_into 中的 v2 子模块
+
+lineage:
+  source_workbook_pattern: "*品类数据看板*.xlsx"
+  source_workbook_name: 2026 SPH 品类数据看板.xlsx
+  formula_sheet: DECK
+  source_tables:
+    - table_id: dashboard_history
+      source_sheet: 过去数据
+      processed_table: source_tables/dashboard_history.csv
+      role: legacy_part_1
+      extraction_rule: 见 dashboard_history_market_trend
+      aggregation_rule: 见 dashboard_history_market_trend
+    - table_id: dashboard_daily_data
+      source_sheet: daily data
+      processed_table: source_tables/dashboard_daily_data.csv
+      role: legacy_part_2
+      extraction_rule: 见 dashboard_daily_cncb_performance
+      aggregation_rule: 见 dashboard_daily_cncb_performance
+    - table_id: dashboard_price_tier
+      source_sheet: price tier
+      processed_table: source_tables/dashboard_price_tier.csv
+      role: legacy_part_3
+      extraction_rule: 见 dashboard_price_tier_distribution
+      aggregation_rule: 见 dashboard_price_tier_distribution
+    - table_id: dashboard_price_tier_prior
+      source_sheet: price tier2
+      processed_table: source_tables/dashboard_price_tier2.csv
+      role: legacy_part_4
+      extraction_rule: 见 dashboard_price_tier_distribution
+      aggregation_rule: 见 dashboard_price_tier_distribution
+    - table_id: dashboard_top_shop
+      source_sheet: top shop
+      processed_table: source_tables/dashboard_top_shop.csv
+      role: legacy_part_5
+      extraction_rule: 见 dashboard_top_shop
+      aggregation_rule: 见 dashboard_top_shop
+    - table_id: dashboard_keywords
+      source_sheet: keywords
+      processed_table: source_tables/dashboard_keywords.csv
+      role: legacy_part_6
+      extraction_rule: 见 dashboard_keywords
+      aggregation_rule: 见 dashboard_keywords
+    - table_id: dashboard_top_listing
+      source_sheet: 热门商品
+      processed_table: source_tables/dashboard_top_listing.csv
+      role: legacy_part_7
+      extraction_rule: 见 dashboard_top_listing
+      aggregation_rule: 见 dashboard_top_listing
+
+data_grain:
+  time_grain: mixed
+  primary_grain: []
+  category_levels:
+    - L1
+    - L2
+    - L3
+  default_filters: []
+
+fields:
+  dimensions: []
+  metrics: []
+
+derived_metrics: []
+
+default_charts: []
+
+chart_rules:
+  dedupe:
+    enabled: false
+    dedupe_group: null
+    prefer: []
+  sorting:
+    default: none
+    special: {}
+  missing_value_policy:
+    do_not_fill_null: true
+    do_not_invent_yoy: true
+    explain_nulls: true
+
+planning_hints:
+  use_when: []
+  avoid_when:
+    - 始终避免 — 本模块已 deprecated
+  preferred_over: []
+  can_combine_with: []
+
+limitations:
+  - 本文件仅作历史说明与 legacy index，不参与 planning agent 模块候选
+  - 请改用 split_into 列出的 6 个 active v2 dashboard 模块
+
+# --- v1 遗留字段（供人工查阅，loader 不读取） ---
+input_cells:
+  l1: C3
+  l2: C4
+  l3: C5
+  top_shop_adg_threshold: C6
+
+parts:
+  - part_id: deck_part_1_market_trend
+    replaced_by: dashboard_history_market_trend
+  - part_id: deck_part_2_daily_cncb
+    replaced_by: dashboard_daily_cncb_performance
+  - part_id: deck_part_3_price_tier
+    replaced_by: dashboard_price_tier_distribution
+  - part_id: deck_part_4_price_tier_prior
+    replaced_by: dashboard_price_tier_distribution
+  - part_id: deck_part_5_top_shop
+    replaced_by: dashboard_top_shop
+  - part_id: deck_part_6_keywords
+    replaced_by: dashboard_keywords
+  - part_id: deck_part_7_top_listing
+    replaced_by: dashboard_top_listing

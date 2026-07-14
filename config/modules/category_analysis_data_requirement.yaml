@@ -1,0 +1,237 @@
+module_id: category_analysis_data_requirement
+name: Category Analysis Data Requirement
+version: 0.1.0
+status: draft
+
+purpose: >
+  Convert a category analysis request into a traceable data requirement and
+  confirmation workbook. The module does not generate the final report or PPT.
+
+applicable_scenarios:
+  - L1/L2/L3 category overview analysis
+  - Category opportunity scan data preparation
+  - Seller or brand pitch data preparation
+  - PPT/report data table preparation
+
+required_user_inputs:
+  - original_request
+  - target_category_text
+
+optional_user_inputs:
+  - business_background
+  - delivery_audience
+  - delivery_format
+  - time_range
+  - target_sites
+  - special_rules
+
+default_assumptions:
+  delivery_format: Excel
+  delivery_audience: pending_confirmation
+  time_range: use_latest_complete_period_from_source_data_and_ask_user_to_confirm
+  data_sensitivity: >
+    External-delivery desensitization is not applied to PPT-ready workbooks.
+    Desensitization belongs to the later PPT generation module.
+
+required_data_sources:
+  - source_id: sph_monthly_category_performance
+    file_pattern: "SPH*bubble*monthly*trend*RM*.xlsx"
+    fallback_file_pattern: "SPH*RM*.xlsx"
+    required_sheets:
+      - "SPH类目树"
+      - "Raw data"
+      - "CNCB 中间表 By site"
+    role: >
+      SPH category tree, monthly category GMV/Orders by site, and formula
+      reference for current manual analysis logic.
+
+required_fields:
+  raw_data:
+    - grass_region
+    - cb_level1_global_be_category
+    - level2_global_be_category
+    - level3_global_be_category
+    - grass_month
+    - gmv_usd
+    - orders
+  category_tree:
+    - cb_level1_global_be_category
+    - level2_global_be_category
+    - level3_global_be_category
+    - level4_global_be_category
+
+supported_analysis_blocks:
+  - block_id: category_overview
+    name: Category overview
+    chart_types:
+      - bar
+      - trend
+    required_fields:
+      - grass_region
+      - grass_month
+      - gmv_usd
+      - orders
+  - block_id: site_distribution
+    name: Site distribution
+    chart_types:
+      - share
+      - bar
+    required_fields:
+      - grass_region
+      - gmv_usd
+      - orders
+  - block_id: l3_distribution
+    name: L3 distribution
+    chart_types:
+      - share
+      - bar
+    required_fields:
+      - level3_global_be_category
+      - gmv_usd
+      - orders
+  - block_id: yoy_bubble_chart_data
+    name: YoY bubble chart data
+    chart_types:
+      - bubble
+    required_fields:
+      - grass_region
+      - grass_month
+      - gmv_usd
+      - orders
+  - block_id: monthly_trend
+    name: Monthly trend
+    chart_types:
+      - trend
+    required_fields:
+      - grass_region
+      - grass_month
+      - gmv_usd
+      - orders
+
+known_unsupported_blocks_v1:
+  - block_id: price_band_distribution
+    name: Price band distribution
+    reason: Current SPH monthly category source lacks SKU/item price detail fields.
+  - block_id: keyword_search_volume_yoy
+    name: Related keywords Search Volume YoY
+    reason: Current SPH monthly category source lacks keyword search volume fields.
+
+category_mapping_policy:
+  candidate_strategy: list_all_possible_candidates
+  user_confirmation: multi_select_required
+  selected_candidates_status: confirmed
+  unselected_candidates_status: not_needed
+  multiple_l3_policy: show_each_l3_separately
+  frontend_backend_gap: >
+    Frontend category names may not equal backend analysis categories. The
+    system should list possible backend category candidates and ask the user to
+    select the ones to use.
+  example_mappings:
+    - user_text: Action Figures
+      candidate_backend_category: Action Figurines
+      confirmation_required: true
+    - user_text: Movies & Anime
+      candidate_backend_category: Anime & Manga Collectibles
+      confirmation_required: true
+
+requirement_workbook:
+  purpose: pre_generation_confirmation
+  sheets:
+    - "需求摘要"
+    - "类目映射候选"
+    - "分析计划"
+    - "数据需求清单"
+    - "源数据检查"
+    - "预处理规划"
+    - "图表PPT数据需求"
+    - "确认记录"
+
+confirmation_gate:
+  purpose: >
+    PPT-ready workbook generation is blocked until all confirmation items are
+    either confirmed or not_needed.
+  allowed_final_statuses:
+    - "已确认"
+    - "不需要"
+  blocking_statuses:
+    - "待确认"
+    - "待补充"
+    - "已补充"
+    - "阻塞"
+  supplement_recheck_policy:
+    - User-provided new data first becomes "已补充".
+    - Agent must recheck whether the new data satisfies the original gap.
+    - If the recheck passes, status becomes "已确认".
+    - If the recheck fails, status returns to "待补充" or becomes "阻塞".
+
+ppt_ready_workbook:
+  enabled_after_confirmation_gate: true
+  implementation_status: planned
+  purpose: >
+    Internal clean data package for PPT chart creation. It is not the final PPT
+    and does not apply external-delivery desensitization.
+  sheet_naming: machine_friendly_human_readable
+  format_policy:
+    - pure_flat_data_tables
+    - no_excel_charts_required
+    - no_pivot_tables_required
+    - no_complex_presentation_layout
+  supported_chart_data_types:
+    - bubble
+    - bar
+    - trend
+    - share
+  grain_policy:
+    fixed_grain: false
+    agent_recommends_grain: true
+    user_confirmation_required: true
+    examples:
+      - category_by_site
+      - l2_by_l3
+      - category_by_month
+      - category_by_site_by_month
+  yoy_policy:
+    default: follow_existing_intermediate_table_logic
+    custom_calculations_require_confirmation: true
+    custom_examples:
+      - YTD
+      - MAT
+      - rolling_12_months
+      - monthly_yoy_series
+  common_traceability_fields:
+    - source_file
+    - source_sheet
+    - category_level
+    - category_name
+    - parent_category
+    - site
+    - metric_period
+    - calculation_note
+    - confirmed_mapping
+  planned_sheets:
+    - ppt_data_catalog
+    - data_notes
+    - confirmed_assumptions
+    - site_performance_l1
+    - site_performance_l2
+    - l3_distribution
+    - selected_l3_by_site
+    - monthly_trend_by_site
+    - yoy_bubble_data
+    - site_share
+  missing_data_policy: >
+    Missing blocks are listed in ppt_data_catalog and data_notes. The system
+    must not generate fake data tables for unsupported or missing data blocks.
+  preview:
+    generate_preview_html: false
+    reserved_for_future: true
+    note: >
+      HTML preview may later show approximate chart shapes, but it is not part
+      of the current implementation.
+
+forbidden_outputs:
+  - fabricate_numbers_not_in_source_data
+  - claim_frontend_category_equals_backend_category_before_confirmation
+  - output_price_band_conclusions_without_price_detail_data
+  - output_keyword_search_yoy_without_keyword_data
+  - generate_ppt_ready_workbook_before_confirmation_gate_passes

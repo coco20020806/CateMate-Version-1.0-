@@ -1,0 +1,309 @@
+schema_version: data_module_v2
+module_id: dashboard_price_tier_distribution
+module_name: 价格段分布与对比
+module_type: price_tier
+status: active
+owner: CateMate
+last_updated: "2026-07-09"
+
+business_purpose:
+  description: 价格段订单/GMV/Live SKU 结构分布，支持价格带贡献、CNCB 渗透及当前期 vs 对比期变化。
+  typical_questions:
+    - 用户明确提到 DECK Part 3 / DECK Part 4 / price tier / price tier2 时的价格段分析？
+    - 各价格段 ADO/ADG/Live_SKUs 分布如何？
+    - 价格带 GMV/订单贡献占比如何？
+    - 当前期 vs 对比期价格段结构有何变化？
+    - Mall、LPP、CFS、Campaign 等在各价格段的贡献如何？
+  decision_support:
+    - 价格带策略与 SKU 结构优化
+    - 当前期与对比期价格迁移判断
+  not_suitable_for:
+    - 单品级价格（请用 dashboard_top_listing）
+    - 日度趋势（请用 dashboard_daily_cncb_performance）
+    - 其他 DECK Part（Part 1/2/5-7）的需求
+
+lineage:
+  source_workbook_pattern: "*品类数据看板*.xlsx"
+  source_workbook_name: 2026 SPH 品类数据看板.xlsx
+  formula_sheet: DECK
+  source_deck_part: "DECK Part 3/4"
+  source_tables:
+    - table_id: dashboard_price_tier
+      source_sheet: price tier
+      processed_table: source_tables/dashboard_price_tier.csv
+      role: current_period_price_tier
+      extraction_rule: 从 price tier sheet 抽取当前期数据
+      aggregation_rule: 按 year_month、seller_type、grass_region、类目、Price_Range_USD 呈现 ADO/ADG 等指标
+    - table_id: dashboard_price_tier_prior
+      source_sheet: price tier2
+      processed_table: source_tables/dashboard_price_tier2.csv
+      role: prior_period_price_tier
+      extraction_rule: 从 price tier2 sheet 抽取对比期数据
+      aggregation_rule: 与当前期相同字段结构，用于期别对比
+
+data_grain:
+  time_grain: snapshot
+  primary_grain:
+    - year_month
+    - seller_type
+    - grass_region
+    - Price_Range_USD
+  category_levels:
+    - L1
+    - L2
+    - L3
+  default_filters:
+    - category
+    - site
+    - seller_type
+    - time_range
+
+fields:
+  dimensions:
+    - field: year_month
+      meaning: 年月
+      role: time
+      required: true
+    - field: seller_type
+      meaning: 卖家类型
+      role: other
+      required: false
+    - field: grass_region
+      meaning: 站点/区域
+      role: site
+      required: true
+    - field: cluster
+      meaning: 集群/分组
+      role: other
+      required: false
+    - field: cb_level1_global_be_category
+      meaning: 一级类目
+      role: category_l1
+      required: false
+    - field: level2_global_be_category
+      meaning: 二级类目
+      role: category_l2
+      required: false
+    - field: level3_global_be_category
+      meaning: 三级类目
+      role: category_l3
+      required: false
+    - field: Price_Range_USD
+      meaning: 美元价格段
+      role: price_tier
+      required: true
+  metrics:
+    - field: ADO
+      meaning: 平均日订单（当前期）
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: ADO_proportion
+      meaning: ADO 占比
+      aggregation: none
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: 使用源字段，不重新计算 share
+    - field: ADO_CNCB_Penetration
+      meaning: ADO CNCB 渗透率
+      aggregation: none
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: ADG
+      meaning: 平均日 GMV（当前期）
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: ADG_proportion
+      meaning: ADG 占比
+      aggregation: none
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: 使用源字段，不重新计算 share
+    - field: ADG_CNCB_penetration
+      meaning: ADG CNCB 渗透率
+      aggregation: none
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: Live_SKUs
+      meaning: 在售 SKU 数
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: Live_SKUs_proportion
+      meaning: Live SKUs 占比
+      aggregation: none
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: 使用源字段，不重新计算 share
+    - field: Live_SKUs_penetration
+      meaning: Live SKUs 渗透率
+      aggregation: none
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: SKU_Eff
+      meaning: SKU 效率
+      aggregation: none
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: Mall_ADO
+      meaning: Mall ADO
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: Mall_ADG
+      meaning: Mall ADG
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: lpp_ado(SUM)
+      meaning: LPP ADO
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: lpp_adg(SUM)
+      meaning: LPP ADG
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: cfs_ado(SUM)
+      meaning: CFS ADO
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: cfs_adg(SUM)
+      meaning: CFS ADG
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: campaign_ado(SUM)
+      meaning: Campaign ADO
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: campaign_adg(SUM)
+      meaning: Campaign ADG
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+
+derived_metrics: []
+
+default_charts:
+  - chart_intent: price_tier_distribution
+    default_chart_type: bar
+    title_template: "{category} 价格段 ADO/ADG/Live_SKUs 分布"
+    x_axis: Price_Range_USD
+    y_axis:
+      - ADO
+      - ADG
+      - Live_SKUs
+    series: null
+    dimensions:
+      - Price_Range_USD
+    sort_rule: price_range_natural_order
+    top_n: null
+    dedupe_group: null
+    notes:
+      - Price_Range_USD 必须按自然顺序，不按指标降序
+  - chart_intent: price_tier_share
+    default_chart_type: share
+    title_template: "{category} 价格段贡献占比"
+    x_axis: null
+    y_axis:
+      - ADO_proportion
+      - ADG_proportion
+      - Live_SKUs_proportion
+    series: null
+    dimensions:
+      - Price_Range_USD
+    sort_rule: price_range_natural_order
+    top_n: null
+    dedupe_group: null
+    notes:
+      - 使用 proportion 字段，不重新计算 share
+  - chart_intent: current_vs_prior_price_tier
+    default_chart_type: bar
+    title_template: "{category} 当前期 vs 对比期价格段 ADO/ADG"
+    x_axis: Price_Range_USD
+    y_axis:
+      - ADO
+      - ADG
+    series: null
+    dimensions:
+      - Price_Range_USD
+    sort_rule: price_range_natural_order
+    top_n: null
+    dedupe_group: null
+    notes:
+      - 对比期必须引用 dashboard_price_tier_prior
+
+chart_rules:
+  dedupe:
+    enabled: false
+    dedupe_group: null
+    prefer: []
+  sorting:
+    default: price_range_natural_order
+    special:
+      Price_Range_USD: price_range_natural_order
+  missing_value_policy:
+    do_not_fill_null: true
+    do_not_invent_yoy: true
+    explain_nulls: true
+
+planning_hints:
+  explicit_triggers:
+    - DECK Part 3
+    - DECK Part 4
+    - DECK Part 3/4
+    - price tier
+    - price tier2
+  use_when:
+    - 用户明确提到 DECK Part 3 / Part 4 / price tier / price tier2（强命中信号）
+    - 用户问价格段、价格带分布或结构变化
+  avoid_when:
+    - 用户仅泛泛提到「DECK」但未说明 Part 3/4
+    - 需要单品样本价格而非价格带聚合
+  preferred_over: []
+  can_combine_with:
+    - dashboard_top_listing
+    - rm_monthly_category_performance
+
+limitations:
+  - Price_Range_USD 为区间标签（如 01_[0,1)），排序用自然顺序而非指标降序
+  - proportion 字段为源数据口径，不得重新计算 share
+  - 期别对比必须同时使用 dashboard_price_tier 与 dashboard_price_tier_prior

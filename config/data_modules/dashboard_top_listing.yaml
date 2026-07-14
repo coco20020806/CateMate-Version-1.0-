@@ -1,0 +1,175 @@
+schema_version: data_module_v2
+module_id: dashboard_top_listing
+module_name: Top Listing 商品样本
+module_type: listing
+status: active
+owner: CateMate
+last_updated: "2026-07-09"
+
+business_purpose:
+  description: Top Listing 热门商品样本，展示商品名称、链接、图片、价格及 ADO/ADGMV。
+  typical_questions:
+    - 用户明确提到 DECK Part 7 / 热门商品 时的 Top Listing 分析？
+    - Top Listing 按 ADGMV 排名如何？
+    - 热门商品的价格与 GMV/订单表现如何？
+    - 某 L3 类目下代表性 listing 有哪些？
+  decision_support:
+    - 爆款商品对标
+    - 价格带内的代表性 SKU 参考
+  not_suitable_for:
+    - 全量 SKU 平均价或市场价格结构（请用 dashboard_price_tier_distribution）
+    - 店铺级经营分析（请用 dashboard_top_shop）
+    - 其他 DECK Part（Part 1-6）的需求
+
+lineage:
+  source_workbook_pattern: "*品类数据看板*.xlsx"
+  source_workbook_name: 2026 SPH 品类数据看板.xlsx
+  formula_sheet: DECK
+  source_deck_part: "DECK Part 7"
+  source_tables:
+    - table_id: dashboard_top_listing
+      source_sheet: 热门商品
+      processed_table: source_tables/dashboard_top_listing.csv
+      role: primary_top_listing_sample
+      extraction_rule: 从「热门商品」sheet 抽取 Top Listing 样本
+      aggregation_rule: 按 item、grass_region、类目呈现价格与 ADO/ADGMV
+
+data_grain:
+  time_grain: snapshot
+  primary_grain:
+    - grass_region
+    - item_name
+  category_levels:
+    - L1
+    - L2
+    - L3
+  default_filters:
+    - category
+    - site
+
+fields:
+  dimensions:
+    - field: item_name
+      meaning: 商品名称
+      role: item
+      required: true
+    - field: item_link
+      meaning: 商品链接
+      role: item
+      required: false
+    - field: item_image
+      meaning: 商品图片 URL
+      role: item
+      required: false
+    - field: grass_region
+      meaning: 站点/区域
+      role: site
+      required: true
+    - field: cb_level1_global_be_category
+      meaning: 一级类目
+      role: category_l1
+      required: false
+    - field: level2_global_be_category
+      meaning: 二级类目
+      role: category_l2
+      required: false
+    - field: level3_global_be_category
+      meaning: 三级类目
+      role: category_l3
+      required: false
+  metrics:
+    - field: item_price_usd
+      meaning: 商品价格（美元，样本价）
+      aggregation: none
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: current_ado(RAW)
+      meaning: 当前 ADO
+      aggregation: none
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: current_adgmv(RAW)
+      meaning: 当前 ADGMV
+      aggregation: none
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+
+derived_metrics: []
+
+default_charts:
+  - chart_intent: top_listing_table
+    default_chart_type: table
+    title_template: "{category} Top Listing 排名"
+    x_axis: null
+    y_axis:
+      - current_adgmv(RAW)
+      - current_ado(RAW)
+      - item_price_usd
+    series: null
+    dimensions:
+      - item_name
+      - item_link
+      - item_image
+      - grass_region
+    sort_rule: metric_desc
+    top_n: 50
+    dedupe_group: null
+    notes:
+      - 默认按 current_adgmv(RAW) 降序，top_n=50
+      - item_image 可能为空，不能因为图片缺失丢弃记录
+  - chart_intent: listing_price_reference
+    default_chart_type: bar
+    title_template: "{category} Listing 价格与 ADGMV 参考"
+    x_axis: level3_global_be_category
+    y_axis:
+      - item_price_usd
+      - current_adgmv(RAW)
+    series: null
+    dimensions:
+      - item_name
+      - level3_global_be_category
+    sort_rule: metric_desc
+    top_n: 30
+    dedupe_group: null
+    notes:
+      - 也可用 table 展示 item_name 级别明细
+
+chart_rules:
+  dedupe:
+    enabled: false
+    dedupe_group: null
+    prefer: []
+  sorting:
+    default: metric_desc
+    special: {}
+  missing_value_policy:
+    do_not_fill_null: true
+    do_not_invent_yoy: true
+    explain_nulls: true
+
+planning_hints:
+  explicit_triggers:
+    - DECK Part 7
+    - Deck Part 7
+    - 热门商品
+  use_when:
+    - 用户明确提到 DECK Part 7 / 热门商品（强命中信号）
+    - 用户问 Top Listing、热门商品、爆款样本
+  avoid_when:
+    - 用户仅泛泛提到「DECK」但未说明 Part 7
+    - 需要价格段结构而非单品样本
+  preferred_over: []
+  can_combine_with:
+    - dashboard_price_tier_distribution
+    - dashboard_keywords
+
+limitations:
+  - Top Listing 价格为样本价格，不代表全量 SKU 平均价
+  - item_image 可能为空，不能因为图片缺失丢弃记录
+  - 榜单为热门商品样本，不代表全量商品池

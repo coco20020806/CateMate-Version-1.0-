@@ -1,0 +1,61 @@
+generated_at: '2026-01-01T00:00:00'
+config_path: config/processed_data_sources.yaml
+raw_data_dir: CateMate_rawdata
+processed_data_dir: CateMate_processeddata
+tables:
+  - table_id: rm_raw_data
+    description: Demo RM monthly category GMV / Orders (synthetic).
+    source_workbook_name: demo_rm_workbook.xlsx
+    source_sheet: Raw data
+    output_csv_relative: source_tables/rm_raw_data.csv
+    row_count: 10
+    column_count: 7
+    columns:
+      - grass_region
+      - cb_level1_global_be_category
+      - level2_global_be_category
+      - level3_global_be_category
+      - grass_month
+      - gmv_usd
+      - orders
+    important_fields:
+      - grass_region
+      - cb_level1_global_be_category
+      - level2_global_be_category
+      - level3_global_be_category
+      - grass_month
+      - gmv_usd
+      - orders
+    dedupe_keys:
+      - __all_columns__
+    update_mode: append_merge
+    source_modified_time: '2026-01-01T00:00:00'
+    extracted_at: '2026-01-01T00:00:00'
+  - table_id: dashboard_history
+    description: Demo dashboard history (synthetic).
+    source_workbook_name: demo_sph_dashboard.xlsx
+    source_sheet: history
+    output_csv_relative: source_tables/dashboard_history.csv
+    row_count: 10
+    column_count: 7
+    columns:
+      - grass_region
+      - cb_level1_global_be_category
+      - level2_global_be_category
+      - level3_global_be_category
+      - grass_month
+      - gmv_usd
+      - orders
+    important_fields:
+      - grass_region
+      - cb_level1_global_be_category
+      - level2_global_be_category
+      - level3_global_be_category
+      - grass_month
+      - gmv_usd
+      - orders
+    dedupe_keys:
+      - __all_columns__
+    update_mode: append_merge
+    source_modified_time: '2026-01-01T00:00:00'
+    extracted_at: '2026-01-01T00:00:00'

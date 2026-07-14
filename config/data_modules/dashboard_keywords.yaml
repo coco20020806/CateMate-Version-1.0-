@@ -1,0 +1,236 @@
+schema_version: data_module_v2
+module_id: dashboard_keywords
+module_name: 热门关键词
+module_type: keyword
+status: active
+owner: CateMate
+last_updated: "2026-07-09"
+
+business_purpose:
+  description: 热门关键词分析，基于关键词点击与 benchmark 对比展示热度、涨跌趋势与潜力；默认以表格呈现，按当前日点击降序排列。
+  typical_questions:
+    - 用户明确提到 DECK Part 6 / keywords 时的关键词分析？
+    - 某 L1/L2/L3 类目下热门关键词有哪些（按 current_daily_item_click 从高到低）？
+    - 关键词相对 benchmark 的点击变化趋势如何（大幅下降/轻微下跌/小幅上涨/大幅上涨/热度爆涨）？
+    - 指定站点下 Top 关键词是什么？未指定站点时各站点关键词如何罗列？
+    - 关键词日点击增长或 diff 最高的有哪些？（仅当用户明确问增长/bar 图时）
+  decision_support:
+    - 搜索/广告热词选品与投放
+    - 关键词相对 benchmark 的涨跌机会识别
+  not_suitable_for:
+    - 全站搜索量推断（除非源字段明确支持 search volume）
+    - Top Shop 或 Top Listing 分析
+    - 长周期关键词趋势（本模块为静态 snapshot）
+    - 其他 DECK Part（Part 1-5、7）的需求
+
+lineage:
+  source_workbook_pattern: "*品类数据看板*.xlsx"
+  source_workbook_name: 2026 SPH 品类数据看板.xlsx
+  formula_sheet: DECK
+  source_deck_part: "DECK Part 6"
+  source_tables:
+    - table_id: dashboard_keywords
+      source_sheet: keywords
+      processed_table: source_tables/dashboard_keywords.csv
+      role: primary_keyword_ranking
+      extraction_rule: 从 keywords sheet 抽取关键词点击数据（对应 DECK Part 6）
+      aggregation_rule: 先按需求筛选类目（L1/L2/L3），再按 seller_type、grass_region、keyword 呈现点击与 benchmark 指标
+
+data_grain:
+  time_grain: snapshot
+  primary_grain:
+    - grass_region
+    - keyword
+  category_levels:
+    - L1
+    - L2
+    - L3
+  default_filters:
+    - category
+    - site
+    - seller_type
+
+fields:
+  dimensions:
+    - field: seller_type
+      meaning: 卖家类型
+      role: other
+      required: false
+    - field: grass_region
+      meaning: 站点/区域
+      role: site
+      required: true
+    - field: cb_level1_global_be_category
+      meaning: 一级类目
+      role: category_l1
+      required: false
+    - field: level2_global_be_category
+      meaning: 二级类目
+      role: category_l2
+      required: false
+    - field: level3_global_be_category
+      meaning: 三级类目
+      role: category_l3
+      required: false
+    - field: keyword
+      meaning: 关键词
+      role: keyword
+      required: true
+  metrics:
+    - field: keyword_rank(SUM)
+      meaning: 关键词排名（源字段；默认表格不以排名排序）
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: current_daily_item_click(SUM)
+      meaning: 当前日点击
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: benchmark_daily_item_click(SUM)
+      meaning: 基准日点击
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: daily_item_click_growth(SUM)
+      meaning: 日点击增长率（相对 benchmark 的百分比变化，用于趋势标签）
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: benchmark 为 0 或缺失时趋势标签为空
+    - field: daily_item_click_diff(SUM)
+      meaning: 日点击差值（current - benchmark）
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+
+derived_metrics:
+  - metric_id: click_change_rate
+    meaning: 当前日点击相对 benchmark 的百分比变化
+    expression: (current_daily_item_click(SUM) - benchmark_daily_item_click(SUM)) / benchmark_daily_item_click(SUM)
+    required_fields:
+      - current_daily_item_click(SUM)
+      - benchmark_daily_item_click(SUM)
+    null_rule: benchmark_daily_item_click(SUM) 为 0 或缺失时为空；优先使用源字段 daily_item_click_growth(SUM) 若已存在且口径一致
+  - metric_id: click_trend_label
+    meaning: 关键词点击趋势文字标签
+    expression: |
+      IFS(
+        rate < -0.2, "大幅下降",
+        rate < 0, "轻微下跌",
+        rate < 0.5, "小幅上涨",
+        rate < 1, "大幅上涨",
+        rate >= 1, "热度爆涨"
+      )
+      其中 rate = click_change_rate 或 daily_item_click_growth(SUM)
+    required_fields:
+      - current_daily_item_click(SUM)
+      - benchmark_daily_item_click(SUM)
+    null_rule: rate 为空时不显示标签
+
+default_charts:
+  - chart_intent: keyword_table
+    default_chart_type: table
+    title_template: "{category} 热门关键词"
+    x_axis: null
+    y_axis:
+      - current_daily_item_click(SUM)
+      - benchmark_daily_item_click(SUM)
+      - click_trend_label
+      - keyword_rank(SUM)
+    series: null
+    dimensions:
+      - keyword
+      - grass_region
+      - seller_type
+    sort_rule: metric_desc
+    sort_field: current_daily_item_click(SUM)
+    top_n: 50
+    top_n_multi_site: 20
+    dedupe_group: keyword_primary
+    notes:
+      - 默认且唯一的常规出图方式；先按需求筛选类目（L2/L3 等），再列关键词
+      - 默认按 current_daily_item_click(SUM) 从高到低排序，不用 keyword_rank 升序
+      - 展示 click_trend_label：基于 current 相对 benchmark 的百分比变化映射为 大幅下降/轻微下跌/小幅上涨/大幅上涨/热度爆涨
+      - 未选择特定 site：罗列各 site，按站点分组展示关键词与趋势（多 site 时 top_n=20）
+      - 选择单一 site：直接展示该 site 关键词列表（top_n=50）
+  - chart_intent: keyword_growth_bar
+    default_chart_type: bar
+    title_template: "{category} 关键词点击增长"
+    x_axis: keyword
+    y_axis:
+      - daily_item_click_growth(SUM)
+    series: null
+    dimensions:
+      - keyword
+    sort_rule: metric_desc
+    top_n: 20
+    dedupe_group: keyword_primary
+    notes:
+      - 非默认图；仅当用户明确要求 bar 图或「增长最高」类问题时可选
+
+chart_rules:
+  dedupe:
+    enabled: true
+    dedupe_group: keyword_primary
+    prefer:
+      - chart_intent:keyword_table
+  keyword_table:
+    default_sort_field: current_daily_item_click(SUM)
+    default_sort: metric_desc
+    top_n_single_site: 50
+    top_n_multi_site: 20
+    show_site_column_when: no_site_filter_or_multiple_sites
+    trend_label_mapping:
+      - max_exclusive: -0.2
+        label: 大幅下降
+      - max_exclusive: 0
+        label: 轻微下跌
+      - max_exclusive: 0.5
+        label: 小幅上涨
+      - max_exclusive: 1
+        label: 大幅上涨
+      - min_inclusive: 1
+        label: 热度爆涨
+    trend_rate_field: daily_item_click_growth(SUM)
+  sorting:
+    default: metric_desc
+    special:
+      keyword_table: metric_desc_on_current_daily_item_click
+  missing_value_policy:
+    do_not_fill_null: true
+    do_not_invent_yoy: true
+    explain_nulls: true
+
+planning_hints:
+  explicit_triggers:
+    - DECK Part 6
+    - Deck Part 6
+    - keywords
+  use_when:
+    - 用户明确提到 DECK Part 6 / keywords（强命中信号）
+    - 用户问热门关键词、关键词点击、benchmark 对比、涨跌趋势标签
+    - 用户问某类目下按日点击排序的关键词表
+  avoid_when:
+    - 用户仅泛泛提到「DECK」但未说明 Part 6
+    - 用户需要全站 search volume 但源数据无对应字段
+    - 用户未明确要求 bar 图时默认出 keyword_growth_bar（应优先 keyword_table）
+  preferred_over: []
+  can_combine_with:
+    - dashboard_top_listing
+    - dashboard_top_shop
+
+limitations:
+  - 关键词为点击/广告热词视角，不等同于全站搜索量
+  - 数据为静态 snapshot，非长周期趋势；当前源数据关键词快照日期为 2026-06-30
+  - 默认只出表格，不按 keyword_rank 升序；排序以 current_daily_item_click 为准
+  - 趋势标签依赖 current 与 benchmark 的百分比变化，benchmark 缺失时标签为空

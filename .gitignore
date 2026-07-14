@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+env/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Runtime logs and ephemeral run dirs
+logs/
+runs/
+
+# ---------------------------------------------------------------------------
+# Confidential / local-only data — NEVER commit to a public repository
+# ---------------------------------------------------------------------------
+
+# Raw Excel downloads from internal dashboards
+CateMate_rawdata/*
+!CateMate_rawdata/.gitkeep
+!CateMate_rawdata/README.md
+
+# Processed CSV layer (derived from confidential raw data)
+CateMate_processeddata/*
+!CateMate_processeddata/.gitkeep
+!CateMate_processeddata/README.md
+
+# Legacy processed folder (same data layer, do not publish)
+processed/
+
+# All pipeline outputs (workbooks, manifests, HTML previews, run folders)
+outputs/*
+!outputs/.gitkeep
+!outputs/README.md
+
+# Real business case configs (use examples/cases/ for the public repo)
+config/cases/pet_healthcare_vn.yaml
+config/cases/hkcb_collectible.yaml
+config/cases/*_private.yaml
+config/cases/*_internal.yaml
+
+# Docs that describe real internal cases or unreleased product ideas
+docs/example_case_vn_livestock_pet_healthcare.md
+docs/example_case_hkcb_collectible_workflow.md
+CateMate_新产品构想.md
+
+# Office temp files
+~$*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.agents/
+*.swp
+*.swo

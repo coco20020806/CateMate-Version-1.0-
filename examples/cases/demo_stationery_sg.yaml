@@ -1,0 +1,77 @@
+case_id: demo_stationery_sg
+project_name: Demo — SG Stationery Category Insight（虚构示例）
+original_request: >
+  虚构需求：分析新加坡（SG）文具类目过去 6 个月的市场趋势、站点 GMV 占比，
+  以及 L3 细分品类的增长情况。仅用于验证 CateMate 流水线，不代表任何真实业务。
+target_category_text: Stationery / Notebooks & Papers
+business_background: 开源仓库演示用虚构 case，所有站点、类目、数字均为合成数据。
+delivery_audience: 开发者 / 贡献者
+delivery_format: Excel 数据需求集合
+target_sites:
+  - SG
+time_range: 2025-01 至 2025-06（合成数据覆盖范围）
+
+source_file_keywords:
+  - demo_sph_dashboard
+required_sheets:
+  - history
+raw_fields_sheet_name: history
+required_fields:
+  - grass_region
+  - cb_level1_global_be_category
+  - level2_global_be_category
+  - grass_month
+  - gmv_usd
+  - orders
+category_tree_source_keywords:
+  - demo_category_tree
+category_tree_sheet_name: category_tree
+
+category_keywords:
+  - Stationery
+  - Notebooks
+  - Art Paper
+
+analysis_plan:
+  - analysis_block: 大盘类目趋势
+    question: SG Stationery 的 GMV、Orders 月度趋势如何？
+    support_status: 支持
+    dependencies: dashboard_history
+    note: 演示趋势图数据表生成。
+  - analysis_block: L3 分布
+    question: Notebooks & Papers 下各 L3 的规模如何？
+    support_status: 支持
+    dependencies: dashboard_history + 类目树
+    note: 需要类目树查找表。
+
+data_requirements:
+  - data_source: demo_sph_dashboard.xlsx
+    field_or_sheet: history
+    is_required: 是
+    purpose: 大盘趋势与 L3 聚合
+    missing_impact: 无法生成演示 workbook
+    current_note: 使用 examples/processed_data 合成 CSV
+
+preprocess_plan:
+  - step: 使用示例 processed 数据
+    input_name: examples/processed_data
+    output_name: CateMate_processeddata
+    note: 运行 examples/bootstrap_demo_data.ps1 即可。
+
+chart_requirements:
+  - chart_page: 月度趋势
+    required_table: demo_sg_stationery_trend
+    fields: month, gmv_usd, orders
+    status: 可生成
+    note: 虚构数字。
+    chart_type: trend
+
+static_confirmation_items:
+  - name: 数据源
+    suggested_value: 使用 examples/ 合成数据（非真实业务数据）
+    status: 已确认
+    reason: 开源演示专用。
+  - name: 目标站点
+    suggested_value: SG
+    status: 已确认
+    reason: 虚构示例固定为新加坡站点。

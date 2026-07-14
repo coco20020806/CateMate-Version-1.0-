@@ -1,0 +1,338 @@
+schema_version: data_module_v2
+module_id: dashboard_daily_cncb_performance
+module_name: Shopee/CNCB 表现
+module_type: daily_performance
+status: active
+owner: CateMate
+last_updated: "2026-07-09"
+
+business_purpose:
+  description: 基于品类看板 daily data 的 Shopee 与 CNCB 表现，含跨境渗透率、广告/活动/LPP/CFS 等渠道贡献；源数据为日度，默认按月聚合分析。
+  typical_questions:
+    - 用户明确提到 DECK Part 2 / Deck Part2 时的 CNCB 渗透、渠道或 Shopee/CNCB 表现？
+    - 某品类下最近一个月（或指定月份）各站点 CNCB GMV 渗透率/市场占有率是多少？
+    - CNCB 占比、跨境卖家市场份额（按站点、按月）如何？
+    - 某渠道（广告/活动/LPP/CFS）的 GMV 贡献或占比如何？（通常一次只问一个渠道）
+    - Shopee / CNCB GMV、Orders 的月度趋势如何？
+    - 最近一个月或最近 N 个月的跨境/本地市场表现对比？
+    - sold SKUs / live SKUs 动销情况（当问题涉及 SKU 维度时）？
+    - 日度 Shopee / CNCB 趋势如何？（仅当问题含日度、daily、按天等关键词时）
+  decision_support:
+    - 跨境卖家市场占有率判断（按月、按站点）
+    - 渠道投放效果（广告/活动/LPP/CFS 单独查看）
+    - 月度运营与渗透变化
+  not_suitable_for:
+    - 长时间窗口的纯月度市场趋势（请用 rm_monthly_category_performance 或 dashboard_history_market_trend）
+    - 其他 DECK Part（Part 1、Part 3-7）的需求
+    - 价格段、Top Shop、关键词分析
+
+lineage:
+  source_workbook_pattern: "*品类数据看板*.xlsx"
+  source_workbook_name: 2026 SPH 品类数据看板.xlsx
+  formula_sheet: DECK
+  source_deck_part: "DECK Part 2"
+  source_tables:
+    - table_id: dashboard_daily_data
+      source_sheet: daily data
+      processed_table: source_tables/dashboard_daily_data.csv
+      role: primary_daily_fact
+      extraction_rule: 从 daily data sheet 抽取到 processed CSV（对应 DECK Part 2）
+      aggregation_rule: 默认按 month、grass_region、类目层级聚合各 SUM 指标；用户明确要求日度时用 grass_date，按年时用 year
+
+data_grain:
+  time_grain: mixed
+  primary_grain:
+    - month
+    - grass_region
+    - cb_level1_global_be_category
+    - level2_global_be_category
+    - level3_global_be_category
+  category_levels:
+    - L1
+    - L2
+    - L3
+  default_filters:
+    - category
+    - site
+    - time_range
+
+fields:
+  dimensions:
+    - field: month
+      meaning: 月份（默认时间聚合与趋势轴）
+      role: time
+      required: true
+    - field: grass_date
+      meaning: 日期（日度明细；用户明确要求日度分析时使用）
+      role: time
+      required: false
+    - field: year
+      meaning: 年份（按年聚合时使用）
+      role: time
+      required: false
+    - field: grass_region
+      meaning: 站点/区域
+      role: site
+      required: true
+    - field: cb_level1_global_be_category
+      meaning: 一级类目
+      role: category_l1
+      required: false
+    - field: level2_global_be_category
+      meaning: 二级类目
+      role: category_l2
+      required: false
+    - field: level3_global_be_category
+      meaning: 三级类目
+      role: category_l3
+      required: false
+  metrics:
+    - field: shopee_order(SUM)
+      meaning: Shopee 订单数
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: shopee_gmv_usd(SUM)
+      meaning: Shopee GMV（美元）
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: cncb_order(SUM)
+      meaning: CNCB 订单数
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: cncb_gmv_usd(SUM)
+      meaning: CNCB GMV（美元）
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: shopee_ads_gmv_usd(SUM)
+      meaning: 广告 GMV 贡献
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: shopee_campaign_gmv_usd(SUM)
+      meaning: 活动 GMV 贡献
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: shopee_lpp_gmv_usd(SUM)
+      meaning: LPP GMV 贡献
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: shopee_cfs_gmv_usd(SUM)
+      meaning: CFS GMV 贡献
+      aggregation: sum
+      default_axis: y
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: shopee_sold_skus(SUM)
+      meaning: Shopee 动销 SKU 数
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: cncb_sold_skus(SUM)
+      meaning: CNCB 动销 SKU 数
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+    - field: shopee_live_skus(SUM)
+      meaning: Shopee 在售 SKU 数
+      aggregation: sum
+      default_axis: none
+      derived: false
+      derivation: null
+      null_rule: null
+
+derived_metrics:
+  - metric_id: cncb_gmv_penetration
+    meaning: CNCB GMV 渗透率（CNCB GMV / Shopee GMV）
+    expression: cncb_gmv_usd(SUM) / shopee_gmv_usd(SUM)
+    required_fields:
+      - cncb_gmv_usd(SUM)
+      - shopee_gmv_usd(SUM)
+    null_rule: shopee_gmv_usd(SUM) 为 0 或缺失时为空
+
+default_charts:
+  - chart_intent: monthly_performance_trend
+    default_chart_type: trend
+    title_template: "{category} 月度 Shopee/CNCB GMV 趋势"
+    x_axis: month
+    y_axis:
+      - shopee_gmv_usd(SUM)
+      - cncb_gmv_usd(SUM)
+    series: grass_region
+    dimensions:
+      - month
+      - grass_region
+    sort_rule: time_ascending
+    top_n: null
+    dedupe_group: null
+    notes:
+      - 默认按月聚合；用户明确要求日度/daily/按天时改用 grass_date 作为 x_axis
+  - chart_intent: cncb_site_penetration_latest_month
+    default_chart_type: bar
+    title_template: "{category} 各站点 CNCB GMV 渗透率（{month}）"
+    x_axis: cncb_gmv_penetration
+    y_axis:
+      - grass_region
+    series: null
+    dimensions:
+      - grass_region
+      - month
+    sort_rule: metric_desc
+    top_n: null
+    dedupe_group: null
+    notes:
+      - 默认取数据最新一个月，除非用户明确指定月份
+      - y 轴为站点（by site）；x 为 CNCB 渗透率 = cncb_gmv_usd(SUM) / shopee_gmv_usd(SUM)
+      - 100% 横向柱图：每个柱子等长，颜色区分 CNCB 与非 CNCB 部分
+  - chart_intent: ads_gmv_share_by_site
+    default_chart_type: bar
+    title_template: "{category} 各站点广告 GMV 占比（{month}）"
+    x_axis: grass_region
+    y_axis:
+      - shopee_ads_gmv_usd(SUM)
+    series: null
+    dimensions:
+      - grass_region
+      - month
+    sort_rule: metric_desc
+    top_n: null
+    dedupe_group: channel_contribution
+    notes:
+      - 仅当用户问题命中「广告」维度时单独出图，不与其他渠道合并
+  - chart_intent: campaign_gmv_share_by_site
+    default_chart_type: bar
+    title_template: "{category} 各站点活动 GMV 占比（{month}）"
+    x_axis: grass_region
+    y_axis:
+      - shopee_campaign_gmv_usd(SUM)
+    series: null
+    dimensions:
+      - grass_region
+      - month
+    sort_rule: metric_desc
+    top_n: null
+    dedupe_group: channel_contribution
+    notes:
+      - 仅当用户问题命中「活动」维度时单独出图
+  - chart_intent: lpp_gmv_share_by_site
+    default_chart_type: bar
+    title_template: "{category} 各站点 LPP GMV 占比（{month}）"
+    x_axis: grass_region
+    y_axis:
+      - shopee_lpp_gmv_usd(SUM)
+    series: null
+    dimensions:
+      - grass_region
+      - month
+    sort_rule: metric_desc
+    top_n: null
+    dedupe_group: channel_contribution
+    notes:
+      - 仅当用户问题命中「LPP」维度时单独出图
+  - chart_intent: cfs_gmv_share_by_site
+    default_chart_type: bar
+    title_template: "{category} 各站点 CFS GMV 占比（{month}）"
+    x_axis: grass_region
+    y_axis:
+      - shopee_cfs_gmv_usd(SUM)
+    series: null
+    dimensions:
+      - grass_region
+      - month
+    sort_rule: metric_desc
+    top_n: null
+    dedupe_group: channel_contribution
+    notes:
+      - 仅当用户问题命中「CFS」维度时单独出图
+  - chart_intent: sku_performance_by_month
+    default_chart_type: trend
+    title_template: "{category} 月度 SKU 动销趋势"
+    x_axis: month
+    y_axis:
+      - shopee_sold_skus(SUM)
+      - cncb_sold_skus(SUM)
+      - shopee_live_skus(SUM)
+    series: grass_region
+    dimensions:
+      - month
+      - grass_region
+    sort_rule: time_ascending
+    top_n: null
+    dedupe_group: null
+    notes:
+      - 当用户问题涉及 sold SKUs / live SKUs 时可选出图
+
+chart_rules:
+  dedupe:
+    enabled: true
+    dedupe_group: channel_contribution
+    prefer:
+      - single_channel_match
+  aggregation:
+    default_time_grain: month
+    daily_time_field: grass_date
+    yearly_time_field: year
+    default_month_selection: latest_in_data
+    monthly_missing_day_policy: report_and_ask_user_to_verify
+  sorting:
+    default: time_ascending
+    special: {}
+  missing_value_policy:
+    do_not_fill_null: true
+    do_not_invent_yoy: true
+    explain_nulls: true
+
+planning_hints:
+  explicit_triggers:
+    - DECK Part 2
+    - Deck Part 2
+    - DECK Part2
+    - daily data
+  use_when:
+    - 用户明确提到 DECK Part 2 / Deck Part2 / daily data（强命中信号）
+    - 用户问 CNCB 占比、渗透率、跨境市场占有率（按站点、按月）
+    - 用户问某单一渠道（广告/活动/LPP/CFS）的 GMV 贡献或占比
+    - 用户问最近一个月或最近 N 个月的 Shopee/CNCB 表现
+    - 典型需求：某品类下最新一个月各站点 CNCB 渗透率（100% 横向柱，by site）
+    - 用户问 SKU 动销（sold SKUs / live SKUs）
+    - 用户明确提到日度、daily、按天趋势
+  avoid_when:
+    - 用户仅泛泛提到「DECK」但未说明 Part 2（可能对应 Part 1/3-7 等其他模块）
+    - 用户只要长时间窗口的纯月度市场趋势（优先 rm 或 dashboard_history 模块）
+    - 用户只问一个渠道却把广告/活动/LPP/CFS 合并成一张图（应拆成单渠道图）
+    - 用户未提日度却默认用 grass_date 做趋势轴
+    - 用户未提 CNCB/跨境/daily data/渠道/SKU 等本模块字段语义时，不要仅因模块曾来自 DECK 而误命中
+  preferred_over: []
+  can_combine_with:
+    - rm_monthly_category_performance
+    - dashboard_history_market_trend
+
+limitations:
+  - 源数据为日度，但默认按 month 聚合；仅当用户提到日度趋势/daily/按天时才用 grass_date
+  - 按月聚合时若某月存在日度缺失（缺某天），应汇报缺失情况，提示用户回源检查
+  - 渠道 GMV 为贡献口径，不等于独立归因；各渠道图应单独展示，默认不合并汇报
+  - 不含价格段、榜单类分析
