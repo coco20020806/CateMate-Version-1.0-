@@ -32,6 +32,12 @@ CateMate_processeddata/*
 # Legacy processed folder (same data layer, do not publish)
 processed/
 
+# Accidental local artifacts (not examples/)
+example/
+
+# Internal analysis dumps (local only)
+docs/vn_livestock_*.json
+
 # All pipeline outputs (workbooks, manifests, HTML previews, run folders)
 outputs/*
 !outputs/.gitkeep
