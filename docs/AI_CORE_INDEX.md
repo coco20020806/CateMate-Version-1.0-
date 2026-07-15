@@ -1,5 +1,15 @@
 # CateMate AI 核心导航
 
+## V2 迭代（2026-07-15）
+
+架构构想（**迭代中，非当前主链路**）：
+
+- **`docs/CATEMATE_V2_DESIGN_OVERVIEW.md`** — Scope×Module、三维度 rawdata、澄清数据 loop、Data Workbook
+- **`data_modules/AUTHORING_SPEC.md`** — 可执行模块写作指示
+- **`data_modules/monthly_market_trend/`** — 试点模块
+
+---
+
 ## V1 Agent 启动顺序（2026-07-09）
 
 后续 AI / agent / Cursor 接手 CateMate 时，先按下面顺序读取：

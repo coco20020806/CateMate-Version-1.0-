@@ -14,6 +14,10 @@ env/
 # Runtime logs and ephemeral run dirs
 logs/
 runs/
+.pytest_cache/
+
+# Local-only private notes and assets (never publish)
+_local/
 
 # ---------------------------------------------------------------------------
 # Confidential / local-only data — NEVER commit to a public repository
@@ -29,19 +33,13 @@ CateMate_processeddata/*
 !CateMate_processeddata/.gitkeep
 !CateMate_processeddata/README.md
 
-# Legacy processed folder (same data layer, do not publish)
-processed/
-
-# Accidental local artifacts (not examples/)
-example/
-
-# Internal analysis dumps (local only)
-docs/vn_livestock_*.json
-
 # All pipeline outputs (workbooks, manifests, HTML previews, run folders)
 outputs/*
 !outputs/.gitkeep
 !outputs/README.md
+
+# Internal analysis dumps (local only)
+docs/vn_livestock_*.json
 
 # Real business case configs (use examples/cases/ for the public repo)
 config/cases/pet_healthcare_vn.yaml
@@ -49,10 +47,9 @@ config/cases/hkcb_collectible.yaml
 config/cases/*_private.yaml
 config/cases/*_internal.yaml
 
-# Docs that describe real internal cases or unreleased product ideas
+# Docs that describe real internal cases (product notes moved to _local/notes/)
 docs/example_case_vn_livestock_pet_healthcare.md
 docs/example_case_hkcb_collectible_workflow.md
-CateMate_新产品构想.md
 
 # Office temp files
 ~$*

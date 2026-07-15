@@ -6,7 +6,7 @@
 
 1. 将业务方提供的 SPH / 品类看板等 Excel 放入本目录。
 2. 文件名需与 `config/processed_data_sources.yaml` 中的 `source_workbook_keywords` 能匹配上。
-3. 运行预处理脚本生成 processed 层：
+3. 运行预处理脚本生成 processed 层（V1）；V2 规划按子目录 `category/`、`shop/`、`item/` 组织，见 [CATEMATE_V2_DESIGN_OVERVIEW.md](../docs/CATEMATE_V2_DESIGN_OVERVIEW.md)。
 
 ```powershell
 python scripts/preprocess_raw_data_sources.py `

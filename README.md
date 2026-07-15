@@ -5,14 +5,43 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](requirements.txt)
 [![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B)](app/streamlit_app.py)
+[![V2](https://img.shields.io/badge/V2-迭代中构想-orange)](docs/CATEMATE_V2_DESIGN_OVERVIEW.md)
 
 **个人 AI Demo 项目，非生产系统。** 仓库不含真实业务数据，请用 [`examples/`](examples/) 合成数据体验。
 
-中文操作说明 → [README_使用说明.md](README_使用说明.md) · 完整设计文档 → [docs/CATEMATE_V1_DESIGN_OVERVIEW.md](docs/CATEMATE_V1_DESIGN_OVERVIEW.md)
+中文操作说明 → [README_使用说明.md](README_使用说明.md)  
+**当前可运行架构（V1）** → [docs/CATEMATE_V1_DESIGN_OVERVIEW.md](docs/CATEMATE_V1_DESIGN_OVERVIEW.md)  
+**迭代中的 V2 构想** → [docs/CATEMATE_V2_DESIGN_OVERVIEW.md](docs/CATEMATE_V2_DESIGN_OVERVIEW.md)
 
 ---
 
-## 架构设计
+## V2 构想（迭代中）
+
+> 完整说明见 **[docs/CATEMATE_V2_DESIGN_OVERVIEW.md](docs/CATEMATE_V2_DESIGN_OVERVIEW.md)**。以下为 GitHub 首页摘要；**主链路仍以 V1 为准**，V2 在 `data_modules/` 等处逐步落地。
+
+V2 把 CateMate 从「YAML 说明书 + 通用聚合」推进为 **确定性 Data Workbook 流水线**：
+
+| 主题 | V2 方向 |
+|------|---------|
+| **核心公式** | 分析语义 = **Scope（取数）× Data Module（写死 Python 算数）** |
+| **源数据** | `CateMate_rawdata/{category,shop,item}/` 三维度 + catalog 就绪检查 |
+| **意图编排** | 按目标组合 `grain × module × metric`；缺源则在**澄清流**中请用户**粘贴文件路径** |
+| **模块资产** | `data_modules/<id>/`（`source_schema` + `compute.py` + 单测） |
+| **试点模块** | `monthly_market_trend` — category/shop/item **共用同一内核**，差异在 Scope |
+| **主交付** | **Data Workbook**（Plan + 表族 + Gaps）；画图降为软参考 |
+
+```mermaid
+flowchart LR
+  GOAL[分析目标] --> CL[Gate A 澄清<br/>含数据路径 loop]
+  CL --> PLAN[AnalysisPlan]
+  PLAN --> SCOPE[Scope 取数]
+  SCOPE --> MOD[data_modules compute]
+  MOD --> WB[Data Workbook]
+```
+
+---
+
+## 架构设计（V1 · 当前主链路）
 
 CateMate 的目标不是让 AI 直接「编一份报告」，而是把业务需求翻译成**可审查的数据准备流程**，在人工确认通过后再输出 PPT-ready 数据包。
 
@@ -180,23 +209,25 @@ python scripts/run_natural_language_requirement_pipeline.py --planning-mode modu
 
 ## 项目结构
 
-```text
-catemate/
-  understanding/       需求理解层
-  module_selection/    模块选择层
-  planning/            规划层
-  ppt_ready/           PPT-ready 生成
-  core/                确认门禁、路径
-app/                   Streamlit 总控台
-config/
-  data_modules/        业务问题模块（YAML）
-  processed_data_sources.yaml
-scripts/               CLI 入口
-examples/              虚构 demo case + 合成数据
-docs/                  设计文档
-```
+完整目录说明见 [docs/PROJECT_LAYOUT.md](docs/PROJECT_LAYOUT.md)。
 
-本地专用（不进公开仓库）：`CateMate_rawdata/` · `CateMate_processeddata/` · `outputs/`
+```text
+app/                   Streamlit 交互层
+catemate/              Agent 内核（理解 → 选模块 → 规划 → PPT-ready）
+config/
+  data_modules/        v2 业务模块 YAML（当前主链路）
+  cases/               真实 case（本地 yaml 不进 Git）
+data_modules/          v3 可执行模块（目录化 + pytest）
+scripts/               CLI 入口
+examples/              公开 demo case + 合成数据
+tests/                 单测
+docs/                  设计文档
+
+CateMate_rawdata/      🔒 原始 Excel
+CateMate_processeddata/ 🔒 预处理 CSV
+outputs/runs/          🔒 流水线产物
+_local/                🔒 本机私有笔记 / PPT
+```
 
 ---
 
@@ -204,8 +235,11 @@ docs/                  设计文档
 
 | 文档 | 内容 |
 |------|------|
-| [CATEMATE_V1_DESIGN_OVERVIEW.md](docs/CATEMATE_V1_DESIGN_OVERVIEW.md) | V1 完整架构与设计原则 |
-| [data_module_catalog.md](docs/data_module_catalog.md) | 数据模块业务说明 |
+| [**CATEMATE_V2_DESIGN_OVERVIEW.md**](docs/CATEMATE_V2_DESIGN_OVERVIEW.md) | **V2 迭代中构想**（Scope×Module、Data Workbook、澄清数据 loop） |
+| [CATEMATE_V1_DESIGN_OVERVIEW.md](docs/CATEMATE_V1_DESIGN_OVERVIEW.md) | V1 当前可运行架构 |
+| [data_modules/AUTHORING_SPEC.md](data_modules/AUTHORING_SPEC.md) | V2 数据模块写作指示 |
+| [PROJECT_LAYOUT.md](docs/PROJECT_LAYOUT.md) | **本地目录结构说明** |
+| [data_module_catalog.md](docs/data_module_catalog.md) | 数据模块业务说明（V1 YAML） |
 | [AI_CORE_INDEX.md](docs/AI_CORE_INDEX.md) | Agent 开发导航索引 |
 | [examples/README.md](examples/README.md) | 演示数据使用说明 |
 

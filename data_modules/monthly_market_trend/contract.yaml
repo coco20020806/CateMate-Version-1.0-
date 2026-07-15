@@ -1,0 +1,214 @@
+schema_version: data_module_v3
+module_id: monthly_market_trend
+module_name: 月度市场趋势
+module_type: market_trend
+status: active
+owner: CateMate
+last_updated: "2026-07-15"
+
+source_schema_ref: source_schema.yaml
+
+replaces:
+  - dashboard_history_market_trend
+  - rm_monthly_category_performance
+
+business_purpose:
+  description: >
+    接收外部 Scope 已过滤的月度明细行。每次调用指定一个指标（gmv / orders / aov），
+    产出该指标的 site×month 主表，以及最新月各站、最新月占比、逐月环比三张延伸表。
+  typical_questions:
+    - 某指标在各站点的月度趋势如何？（分指标调用）
+    - 某指标最新月各站对比、占比、逐月环比如何？
+  decision_support:
+    - 分指标查看站点月度表现
+    - 最新月结构与逐月动量
+  not_suitable_for:
+    - 一次调用同时输出 gmv+orders+aov 宽表（应分三次调用）
+    - 日度、价格段、榜单类问题
+
+scope_expectations:
+  description: 行级过滤与数据源由外部 Scope 完成；本模块不实现 filter。
+  notes:
+    - 每次调用须指定 metric_id：gmv | orders | aov
+    - gmv 调用须传入 gmv_usd；orders 须传入 orders；aov 须同时传入 gmv_usd 与 orders
+    - 类目列缺失不阻塞；见 output metadata
+
+compute_params:
+  metric_id:
+    type: enum
+    allowed: [gmv, orders, aov]
+    required: true
+    description: 每次运行只计算一个指标
+
+outputs:
+  primary:
+    - table_id: gmv_by_site_month
+      metric_id: gmv
+      grain: [grass_region, grass_month]
+      primary_key: [grass_region, grass_month]
+      columns:
+        - { name: grass_region, dtype: string, role: site, nullable: false }
+        - { name: grass_month, dtype: string, role: time, nullable: false }
+        - { name: gmv_usd, dtype: float, role: metric, nullable: true, aggregation: sum }
+      produced_by: compute.main
+
+    - table_id: orders_by_site_month
+      metric_id: orders
+      grain: [grass_region, grass_month]
+      primary_key: [grass_region, grass_month]
+      columns:
+        - { name: grass_region, dtype: string, role: site, nullable: false }
+        - { name: grass_month, dtype: string, role: time, nullable: false }
+        - { name: orders, dtype: float, role: metric, nullable: true, aggregation: sum }
+      produced_by: compute.main
+
+    - table_id: aov_by_site_month
+      metric_id: aov
+      grain: [grass_region, grass_month]
+      primary_key: [grass_region, grass_month]
+      columns:
+        - { name: grass_region, dtype: string, role: site, nullable: false }
+        - { name: grass_month, dtype: string, role: time, nullable: false }
+        - { name: aov, dtype: float, role: derived_metric, nullable: true,
+            rule: sum(gmv_usd)/sum(orders) per site×month }
+      produced_by: compute.main
+
+  derived:
+    - table_id: gmv_latest_month_by_site
+      metric_id: gmv
+      source_table_id: gmv_by_site_month
+      transform_id: latest_period_slice
+      grain: [grass_region]
+      produced_by: transform.latest_period_slice
+
+    - table_id: gmv_latest_month_pct_by_site
+      metric_id: gmv
+      source_table_id: gmv_latest_month_by_site
+      transform_id: share_of_total
+      grain: [grass_region]
+      columns:
+        - { name: grass_region, dtype: string, role: site }
+        - { name: gmv_usd, dtype: float, role: metric }
+        - { name: gmv_usd_pct, dtype: float, role: share }
+      produced_by: transform.share_of_total
+
+    - table_id: gmv_mom_by_site_month
+      metric_id: gmv
+      source_table_id: gmv_by_site_month
+      transform_id: period_growth
+      grain: [grass_region, grass_month]
+      columns:
+        - { name: grass_region, dtype: string, role: site }
+        - { name: grass_month, dtype: string, role: time }
+        - { name: gmv_usd, dtype: float, role: metric }
+        - { name: gmv_usd_mom_pct, dtype: float, role: growth }
+      produced_by: transform.period_growth
+
+    - table_id: orders_latest_month_by_site
+      metric_id: orders
+      source_table_id: orders_by_site_month
+      transform_id: latest_period_slice
+      grain: [grass_region]
+      produced_by: transform.latest_period_slice
+
+    - table_id: orders_latest_month_pct_by_site
+      metric_id: orders
+      source_table_id: orders_latest_month_by_site
+      transform_id: share_of_total
+      grain: [grass_region]
+      columns:
+        - { name: grass_region, dtype: string, role: site }
+        - { name: orders, dtype: float, role: metric }
+        - { name: orders_pct, dtype: float, role: share }
+      produced_by: transform.share_of_total
+
+    - table_id: orders_mom_by_site_month
+      metric_id: orders
+      source_table_id: orders_by_site_month
+      transform_id: period_growth
+      grain: [grass_region, grass_month]
+      columns:
+        - { name: grass_region, dtype: string, role: site }
+        - { name: grass_month, dtype: string, role: time }
+        - { name: orders, dtype: float, role: metric }
+        - { name: orders_mom_pct, dtype: float, role: growth }
+      produced_by: transform.period_growth
+
+    - table_id: aov_latest_month_by_site
+      metric_id: aov
+      source_table_id: aov_by_site_month
+      transform_id: latest_period_slice
+      grain: [grass_region]
+      produced_by: transform.latest_period_slice
+
+    - table_id: aov_latest_month_pct_by_site
+      metric_id: aov
+      source_table_id: aov_latest_month_by_site
+      transform_id: share_of_total
+      grain: [grass_region]
+      columns:
+        - { name: grass_region, dtype: string, role: site }
+        - { name: aov, dtype: float, role: metric }
+        - { name: aov_pct, dtype: float, role: share }
+      produced_by: transform.share_of_total
+
+    - table_id: aov_mom_by_site_month
+      metric_id: aov
+      source_table_id: aov_by_site_month
+      transform_id: period_growth
+      grain: [grass_region, grass_month]
+      columns:
+        - { name: grass_region, dtype: string, role: site }
+        - { name: grass_month, dtype: string, role: time }
+        - { name: aov, dtype: float, role: metric }
+        - { name: aov_mom_pct, dtype: float, role: growth }
+      produced_by: transform.period_growth
+
+chart_presets:
+  - preset_id: gmv_trend
+    metric_id: gmv
+    output_table_id: gmv_by_site_month
+    suggested_chart_type: auto_by_month_count
+    x: grass_month
+    y: [gmv_usd]
+    series: grass_region
+    binding: soft
+
+  - preset_id: gmv_latest_month_bar
+    metric_id: gmv
+    output_table_id: gmv_latest_month_by_site
+    suggested_chart_type: bar
+    x: grass_region
+    y: [gmv_usd]
+    binding: soft
+
+  - preset_id: gmv_mom_trend
+    metric_id: gmv
+    output_table_id: gmv_mom_by_site_month
+    suggested_chart_type: trend
+    x: grass_month
+    y: [gmv_usd_mom_pct]
+    series: grass_region
+    binding: soft
+
+planning_hints:
+  explicit_triggers:
+    - 月度趋势
+    - 各站月度 GMV
+    - 各站月度 Orders
+    - 客单价趋势
+    - 环比增速
+  use_when:
+    - 需要单一指标的 site×month 趋势及延伸视角
+  avoid_when:
+    - 需要一张宽表同时含 gmv+orders+aov
+    - 日度、价格段、榜单类问题
+
+limitations:
+  - 每次调用一个 metric_id
+  - 延伸表仅对当次 active 指标计算
+  - 环比为各站逐月 MoM，首月无环比
+
+missing_value_policy:
+  do_not_fill_null: true
+  do_not_invent_yoy: true

@@ -1,0 +1,107 @@
+schema_version: source_schema_v1
+module_id: monthly_market_trend
+
+# ---------------------------------------------------------------------------
+# 源底表列名（Excel / CSV 表头）
+# 每次调用传入：必须列 + 时间列 + 【一个】业务指标所需源列
+# ---------------------------------------------------------------------------
+
+source_columns:
+  required:
+    - column: grass_region
+      meaning: 站点/区域
+      dtype: string
+
+  required_one_of:
+    description: 时间列至少有一列；仅有 grass_date 时 compute 聚合到月
+    columns:
+      - column: grass_month
+        meaning: 月份
+        dtype: string
+      - column: grass_date
+        meaning: 日期（将聚合为 grass_month）
+        dtype: string
+
+  soft_expected:
+    description: 默认期望存在；缺失不阻塞，在输出 metadata 标记
+    columns:
+      - column: cb_level1_global_be_category
+        meaning: 一级类目
+        dtype: string
+      - column: level2_global_be_category
+        meaning: 二级类目
+        dtype: string
+      - column: level3_global_be_category
+        meaning: 三级类目
+        dtype: string
+
+# ---------------------------------------------------------------------------
+# 主表：一指标一表（site × month）
+# 每次调用 ComputeParams.metric_id 指定 gmv | orders | aov 之一
+# ---------------------------------------------------------------------------
+
+compute_rules:
+  description: 每次运行只产出一张主表，对应一个指标
+  active_metric: one_of [gmv, orders, aov]
+
+  time_normalization:
+    prefer_column: grass_month
+    fallback_column: grass_date
+    fallback_rule: parse grass_date → calendar month (YYYY-MM-01)
+
+  group_by: [grass_region, grass_month]
+
+  metrics:
+    gmv:
+      table_id: gmv_by_site_month
+      source_column: gmv_usd
+      value_column: gmv_usd
+      aggregate: sum
+    orders:
+      table_id: orders_by_site_month
+      source_column: orders
+      value_column: orders
+      aggregate: sum
+    aov:
+      table_id: aov_by_site_month
+      source_columns: [gmv_usd, orders]
+      value_column: aov
+      aggregate: derived
+      expression: sum(gmv_usd) / sum(orders) per site×month
+      null_when: orders 为 0 或缺失
+
+  output_metadata:
+    - metric_id
+    - missing_category_columns
+
+# ---------------------------------------------------------------------------
+# 延伸表：对【当前 active 指标】各产出 3 张
+# 1) 最新月各站  2) 最新月各站占比  3) 逐月环比（site×month）
+# ---------------------------------------------------------------------------
+
+transform_rules:
+  per_active_metric:
+    - output_table_id: "{metric}_latest_month_by_site"
+      transform_id: latest_period_slice
+      period_column: grass_month
+
+    - output_table_id: "{metric}_latest_month_pct_by_site"
+      transform_id: share_of_total
+      source: latest_month_by_site
+      share_column: "{value_column}_pct"
+
+    - output_table_id: "{metric}_mom_by_site_month"
+      transform_id: period_growth
+      description: 每个 site×month 相对该站上一月的环比增速
+      compare: month_over_month_per_site
+
+  metric_table_map:
+    gmv:
+      primary_table_id: gmv_by_site_month
+      value_column: gmv_usd
+    orders:
+      primary_table_id: orders_by_site_month
+      value_column: orders
+    aov:
+      primary_table_id: aov_by_site_month
+      value_column: aov
