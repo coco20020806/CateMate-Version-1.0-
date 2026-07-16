@@ -143,11 +143,14 @@ def resolve_manifest_path(project_root: Path, path_string: str | None) -> Path |
     return (project_root / path).resolve()
 
 
-def path_for_manifest(path: Path | None, project_root: Path | None = None) -> str | None:
+def path_for_manifest(path: Path | str | None, project_root: Path | None = None) -> str | None:
     """Store absolute path when possible for reliable Streamlit reload."""
     if path is None:
         return None
-    resolved = path.resolve()
+    text = str(path).strip()
+    if not text:
+        return None
+    resolved = Path(text).resolve()
     return str(resolved)
 
 
@@ -164,18 +167,18 @@ def update_and_save_manifest(
     provider: str,
     model: str,
     planning_mode: str = "ai_direct",
-    case_config_path: Path | None = None,
-    understanding_spec_path: Path | None = None,
-    module_selection_plan_path: Path | None = None,
-    planning_spec_path: Path | None = None,
-    requirement_workbook_path: Path | None = None,
-    ppt_ready_workbook_path: Path | None = None,
-    html_preview_path: Path | None = None,
-    report_blueprint_path: Path | None = None,
-    analysis_plan_path: Path | None = None,
-    solve_loop_state_path: Path | None = None,
-    solve_verdict_path: Path | None = None,
-    data_workbook_path: Path | None = None,
+    case_config_path: Path | str | None = None,
+    understanding_spec_path: Path | str | None = None,
+    module_selection_plan_path: Path | str | None = None,
+    planning_spec_path: Path | str | None = None,
+    requirement_workbook_path: Path | str | None = None,
+    ppt_ready_workbook_path: Path | str | None = None,
+    html_preview_path: Path | str | None = None,
+    report_blueprint_path: Path | str | None = None,
+    analysis_plan_path: Path | str | None = None,
+    solve_loop_state_path: Path | str | None = None,
+    solve_verdict_path: Path | str | None = None,
+    data_workbook_path: Path | str | None = None,
     status: str = "in_progress",
     error_step: str | None = None,
     error_message: str | None = None,

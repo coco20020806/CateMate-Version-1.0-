@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from catemate.execution.result_collector import ExecutionResult
+from catemate.orchestration.module_registry import is_active_v2_module
 from catemate.orchestration.schemas import AnalysisPlan
 from catemate.scope.concept_schemas import RelatedConceptPack
 from catemate.scope.executor import execute_scope
@@ -61,6 +62,12 @@ def execute_analysis_plan_incremental(
 def _run_module(run, *, processed_data_dir: Path | None = None) -> list[tuple[str, object, str]]:
     import pandas as pd
 
+    if not is_active_v2_module(run.module_id):
+        raise ValueError(
+            f"module_id={run.module_id} is not active in V2 solve loop; "
+            "only status=active contracts in data_modules/ may be executed."
+        )
+
     spec = ScopeSpec(
         grain=run.grain,
         table_id=run.table_id,
@@ -86,37 +93,6 @@ def _run_module(run, *, processed_data_dir: Path | None = None) -> list[tuple[st
         for table_id, df in derived.items():
             tables.append((table_id, df, "derived"))
         return tables
-
-    if run.module_id == "daily_cncb_performance":
-        from data_modules.daily_cncb_performance import ComputeParams, compute
-
-        params = ComputeParams(metric_id=run.metric_id)  # type: ignore[arg-type]
-        primary = compute(params, frame)
-        return [(tid, df, "primary") for tid, df in primary.items()]
-
-    if run.module_id == "price_tier_distribution":
-        from data_modules.price_tier_distribution import compute
-
-        primary = compute(frame)
-        return [(tid, df, "primary") for tid, df in primary.items()]
-
-    if run.module_id == "top_shop":
-        from data_modules.top_shop import compute
-
-        primary = compute(frame)
-        return [(tid, df, "primary") for tid, df in primary.items()]
-
-    if run.module_id == "top_listing":
-        from data_modules.top_listing import compute
-
-        primary = compute(frame)
-        return [(tid, df, "primary") for tid, df in primary.items()]
-
-    if run.module_id == "keywords":
-        from data_modules.keywords import compute
-
-        primary = compute(frame)
-        return [(tid, df, "primary") for tid, df in primary.items()]
 
     if run.module_id == "top_sku_info":
         from data_modules.top_sku_info import ComputeParams, compute

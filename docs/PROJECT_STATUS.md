@@ -281,7 +281,8 @@ PPT-ready workbook
 
 规则：
 - processed_manifest = 数据资产层；data module v2 = 业务问题层
-- planning agent 只读取 `status: active` 的模块（当前 7 个）
+- planning agent 只读取 `status: active` 的模块
+- V3 Python 模块（`data_modules/*/contract.yaml`）：solve loop 当前仅 **2 个 active**（`monthly_market_trend`、`top_sku_info`）；其余为 draft
 - deprecated 旧 deck 模块不参与候选，避免重复选择大模块
 
 ## 2026-07-08 数据模块目录

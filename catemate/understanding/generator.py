@@ -9,6 +9,11 @@ from pydantic import ValidationError
 
 from catemate.ai.client import CateMateAIClient
 from catemate.case_generation.context_loader import fallback_case_id, slug_or_empty
+from catemate.core.output_policy import (
+    default_time_range_text,
+    map_daily_performance_intent,
+    normalize_time_range_text,
+)
 from catemate.understanding.prompt_builder import build_requirement_understanding_messages
 from catemate.understanding.clarification import normalize_clarifying_question_ids
 from catemate.understanding.readiness import normalize_understanding_readiness
@@ -88,7 +93,10 @@ def _normalize_understanding_payload(
     understood_raw = normalized.get("understood") or {}
     if not isinstance(understood_raw, dict):
         understood_raw = {}
-    normalized["understood"] = _normalize_understood(understood_raw)
+    normalized["understood"] = _normalize_understood(
+        understood_raw,
+        original_request=str(normalized.get("original_request") or original_request),
+    )
 
     normalized["assumptions"] = [
         _normalize_assumption(item)
@@ -127,7 +135,7 @@ def _normalize_understanding_payload(
     return normalized
 
 
-def _normalize_understood(raw: dict[str, Any]) -> dict[str, Any]:
+def _normalize_understood(raw: dict[str, Any], *, original_request: str = "") -> dict[str, Any]:
     intents: list[str] = []
     for item in _as_list(raw.get("analysis_intents")):
         value = str(item).strip().lower()
@@ -137,6 +145,7 @@ def _normalize_understood(raw: dict[str, Any]) -> dict[str, Any]:
             intents.append(AnalysisIntent.UNKNOWN.value)
     if not intents:
         intents = [AnalysisIntent.UNKNOWN.value]
+    intents = map_daily_performance_intent(intents, original_request=original_request)
 
     metric_definitions = raw.get("metric_definitions") or {}
     if not isinstance(metric_definitions, dict):
@@ -148,6 +157,8 @@ def _normalize_understood(raw: dict[str, Any]) -> dict[str, Any]:
         if isinstance(item, dict)
     ]
 
+    time_range = normalize_time_range_text(str(raw.get("time_range") or default_time_range_text()))
+
     return {
         "business_background": str(raw.get("business_background") or ""),
         "delivery_audience": str(raw.get("delivery_audience") or "待确认"),
@@ -158,7 +169,7 @@ def _normalize_understood(raw: dict[str, Any]) -> dict[str, Any]:
         "inferred_category_candidates": candidate_rows,
         "category_level_hint": str(raw.get("category_level_hint") or "unknown"),
         "analysis_intents": intents,
-        "time_range": str(raw.get("time_range") or "使用源数据可覆盖范围，待确认"),
+        "time_range": time_range,
         "output_expectation": str(
             raw.get("output_expectation") or "数据需求 workbook / PPT-ready workbook"
         ),

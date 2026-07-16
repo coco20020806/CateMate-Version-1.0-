@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from catemate.core.output_policy import time_range_guidance_text
 from catemate.orchestration.schemas import BlueprintSection, ExpectedShape, ReportBlueprint
 from catemate.understanding.schemas import RequirementUnderstandingSpec
 
@@ -17,13 +18,17 @@ BLUEPRINT_SYSTEM_PROMPT = """你是 CateMate 的报告蓝图设计师。
 1. 只输出合法 JSON 对象，根结构为 {"goal": "...", "sections": [...]}。
 2. 不要输出 Markdown、代码块或解释性前后缀。
 3. 每节必须指定 module_id、metric_id、grain，且三者必须来自 module_catalog 的 allowed 值。
-4. section_id 使用 snake_case，建议前缀 s_（如 s_market_trend）；可复用常见 ID 或生成语义化新 ID。
-5. 每节只回答一个可验证子问题；章节数量建议 3–8 节。
-6. 遵循 analysis_playbook 的推荐顺序，但跳过与需求无关的章节。
-7. 禁止选择 module 的 not_suitable_for / avoid_when 所描述的场景。
-8. expected_shape.presentation 仅限：trend_table | ranked_table | daily_table | share_table | table
-9. expected_shape.metrics 必须包含该节的 metric_id。
-10. Sub-L3 或 related concept pack 场景应包含 top_sku_info 类章节。
+4. module_catalog 仅包含当前 status=active 的 V2 module；不得使用 catalog 外的 module_id。
+5. section_id 使用 snake_case，建议前缀 s_（如 s_market_trend）；可复用常见 ID 或生成语义化新 ID。
+6. 每节只回答一个可验证子问题；章节数量建议 2–6 节。
+7. 遵循 analysis_playbook 的推荐顺序，但跳过与需求无关的章节。
+8. 禁止选择 module 的 not_suitable_for / avoid_when 所描述的场景。
+9. expected_shape.presentation 仅限：trend_table | ranked_table | share_table | table
+10. expected_shape.grain 须为月度粒度（如 grass_month）；不得输出日度粒度。
+11. expected_shape.metrics 必须包含该节的 metric_id。
+12. 用户说「最近」「近期」时，用 monthly_market_trend 的最新可用月份，不要规划日度章节。
+13. Sub-L3 或 related concept pack 场景应包含 top_sku_info 类章节。
+14. time_range 解释规则见 payload 中的 output_grain_policy。
 """
 
 
@@ -36,6 +41,7 @@ def build_blueprint_messages(
     payload = {
         "task": "生成 ReportBlueprint",
         "analysis_playbook": analysis_playbook,
+        "output_grain_policy": time_range_guidance_text(),
         "requirement": _requirement_payload(understanding),
         "module_catalog": module_catalog,
         "output_schema": _output_schema_example(),

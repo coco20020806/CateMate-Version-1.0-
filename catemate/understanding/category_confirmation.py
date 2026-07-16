@@ -6,11 +6,17 @@ from datetime import datetime, timezone
 from typing import Literal
 
 from catemate.ai.client import CateMateAIClient
+from catemate.data.category_tree_en import find_path_in_tree
 from catemate.understanding.category_mapper import (
     CategoryMappingResult,
     apply_category_mapping,
 )
-from catemate.understanding.category_proposer import derive_positioning_type, propose_category_candidates
+from catemate.understanding.category_proposer import (
+    derive_positioning_type,
+    merge_candidates,
+    prune_ancestor_candidates,
+    propose_category_candidates,
+)
 from catemate.understanding.concept_pack_generator import enrich_understanding_with_related_concept
 from catemate.understanding.generator import _validate_spec
 from catemate.understanding.prompt_builder import build_requirement_understanding_messages
@@ -49,17 +55,19 @@ def candidate_key(candidate: InferredCategoryCandidate) -> str:
 
 
 def initialize_category_positioning(spec: RequirementUnderstandingSpec) -> RequirementUnderstandingSpec:
-    understood = spec.understood
+    request_text, category_text = _build_proposal_context(spec)
+    ai_candidates = _validated_ai_candidates(spec)
     proposed = propose_category_candidates(
-        request_text=spec.original_request,
-        category_text=understood.target_category_text or understood.inferred_category,
+        request_text=request_text,
+        category_text=category_text,
     )
+    proposed = prune_ancestor_candidates(merge_candidates(ai_candidates, proposed))
     positioning = CategoryPositioning(
         positioning_type=derive_positioning_type(proposed),  # type: ignore[arg-type]
         proposed_candidates=proposed,
         confirmed=False,
     )
-    understood = understood.model_copy(update={"category_positioning": positioning})
+    understood = spec.understood.model_copy(update={"category_positioning": positioning})
     return spec.model_copy(update={"understood": understood})
 
 
@@ -96,12 +104,14 @@ def apply_category_feedback(
         payload = ai_client.complete_json(messages)
         updated = _validate_spec(payload, original_request=spec.original_request)
 
-    understood = updated.understood
+    request_text, category_text = _build_proposal_context(updated, feedback=feedback)
+    ai_candidates = _validated_ai_candidates(updated)
     proposed = propose_category_candidates(
-        request_text=updated.original_request,
-        category_text=understood.target_category_text or understood.inferred_category,
+        request_text=request_text,
+        category_text=category_text,
     )
-    summary = f"已根据反馈更新，当前提案 {len(proposed)} 个类目候选。"
+    proposed = prune_ancestor_candidates(merge_candidates(ai_candidates, proposed))
+    summary = _feedback_summary(proposed)
     if rounds:
         rounds[-1] = rounds[-1].model_copy(update={"system_summary": summary})
 
@@ -111,8 +121,52 @@ def apply_category_feedback(
         confirmed=False,
         feedback_rounds=rounds,
     )
-    understood = understood.model_copy(update={"category_positioning": positioning})
+    understood = updated.understood.model_copy(update={"category_positioning": positioning})
     return updated.model_copy(update={"understood": understood})
+
+
+def _build_proposal_context(
+    spec: RequirementUnderstandingSpec,
+    *,
+    feedback: str = "",
+) -> tuple[str, str]:
+    understood = spec.understood
+    parts = [
+        spec.original_request,
+        feedback,
+        understood.inferred_category,
+        understood.target_category_text,
+    ]
+    request_text = " ".join(part.strip() for part in parts if part and part.strip())
+    category_text = understood.inferred_category.strip() or understood.target_category_text.strip()
+    return request_text, category_text
+
+
+def _validated_ai_candidates(spec: RequirementUnderstandingSpec) -> list[InferredCategoryCandidate]:
+    validated: list[InferredCategoryCandidate] = []
+    for candidate in spec.understood.inferred_category_candidates:
+        path = find_path_in_tree(candidate.l1, candidate.l2, candidate.l3)
+        if path is None:
+            continue
+        validated.append(
+            candidate.model_copy(
+                update={
+                    "l1": path.l1,
+                    "l2": path.l2,
+                    "l3": path.l3,
+                    "category_path": path.path,
+                }
+            )
+        )
+    return validated
+
+
+def _feedback_summary(proposed: list[InferredCategoryCandidate]) -> str:
+    if not proposed:
+        return "已根据反馈更新，但当前没有可用类目候选，请补充更明确的类目描述。"
+    paths = "、".join(candidate_key(item) for item in proposed[:3])
+    suffix = "…" if len(proposed) > 3 else ""
+    return f"已根据反馈更新，当前提案 {len(proposed)} 个类目候选：{paths}{suffix}"
 
 
 def confirm_categories(

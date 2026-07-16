@@ -286,7 +286,7 @@ flowchart LR
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| **0** | 可执行 data modules + 单测 | ✅ 7 个模块已落地 |
+| **0** | 可执行 data modules + 单测 | ✅ 2 active + 5 draft |
 | **1** | `rawdata_catalog` + 三维度源表登记 | ✅ 已落地 |
 | **2** | Scope 执行器 + related / concept pack | ✅ 已落地 |
 | **3** | Solve Loop + `rawdata_*` 澄清 + 路径 ingest | ✅ 已落地 |
@@ -300,6 +300,7 @@ flowchart LR
 
 | 文档 | 内容 |
 |------|------|
+| [CHANGELOG.md](../CHANGELOG.md) | 版本记录（当前 v1.1.0） |
 | [CATEMATE_V1_DESIGN_OVERVIEW.md](CATEMATE_V1_DESIGN_OVERVIEW.md) | 当前可运行架构 |
 | [data_modules/AUTHORING_SPEC.md](../data_modules/AUTHORING_SPEC.md) | 模块写作指示 |
 | [data_modules/monthly_market_trend_review.md](../data_modules/monthly_market_trend_review.md) | 试点模块批注稿 |
@@ -312,4 +313,5 @@ flowchart LR
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-16 | **v1.1.0**：solve loop 收束为 2 active 模块；新增 Sub-L3 / if_related / output_grain_policy；5 个模块降为 draft |
 | 2026-07-15 | 初稿：Scope×Module、三维度 rawdata、澄清 loop、共用 monthly_market_trend、Data Workbook |

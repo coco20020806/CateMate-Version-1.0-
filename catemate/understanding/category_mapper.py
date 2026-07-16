@@ -20,6 +20,12 @@ from catemate.understanding.sub_l3_detector import has_sub_l3_qualifiers, infer_
 MappedLevel = Literal["L1", "L2", "L3"]
 
 TERM_ALIASES: dict[str, str] = {
+    "智能宠物碗": "smart pet bowl feeder",
+    "宠物碗": "pet bowl",
+    "喂食器": "feeder",
+    "饮水器": "feeder",
+    "喂水器": "feeder",
+    "碗": "bowl",
     "狗粮": "dog food",
     "猫粮": "cat food",
     "宠物主粮": "pet food",
@@ -37,6 +43,39 @@ TERM_ALIASES: dict[str, str] = {
     "爱好": "hobbies",
     "收藏": "collections",
 }
+
+GENERIC_L1_TERMS = frozenset({"pets", "stationery", "hobbies", "collections", "books"})
+
+SPECIFIC_PRODUCT_TERMS = frozenset(
+    {
+        "bowl",
+        "bowls",
+        "feeder",
+        "feeders",
+        "smart",
+        "automatic",
+        "auto",
+        "electric",
+        "dog",
+        "cat",
+        "food",
+        "treat",
+        "treats",
+        "grooming",
+        "healthcare",
+        "accessories",
+        "clothing",
+        "litter",
+        "medication",
+        "vitamin",
+        "supplement",
+        "aquarium",
+        "stationery",
+        "pen",
+        "book",
+        "books",
+    }
+)
 
 BROAD_PET_FOOD_TERMS = {
     "pet food",
@@ -58,6 +97,8 @@ SPECIFIC_PET_FOOD_TERMS = {
 }
 
 MIN_MATCH_SCORE = 0.42
+
+TOKEN_STOP_WORDS = frozenset({"pet", "pets", "other", "others", "and", "the"})
 
 
 @dataclass(frozen=True)
@@ -102,34 +143,49 @@ def resolve_category_mapping(
                 reason="需求覆盖整个 L2 类目范围",
             )
 
-    paths = list(cached_category_paths())
-    l3_candidates = _rank_paths(normalized, [p for p in paths if p.l3])
-    l2_candidates = _rank_paths(normalized, [p for p in paths if p.l2 and not p.l3])
-    l1_candidates = _rank_paths(normalized, [p for p in paths if p.depth == 1])
+    ranked = rank_paths_by_depth(normalized, list(cached_category_paths()))
+    if not ranked:
+        return CategoryMappingResult(
+            is_relevant=False,
+            reason="无法在 category_tree_en.json 中找到与需求相关的 L1/L2/L3 类目，判定为无关输入。",
+            confidence=ConfidenceLevel.LOW,
+        )
 
-    best_l3 = l3_candidates[0] if l3_candidates else None
-    best_l2 = l2_candidates[0] if l2_candidates else None
-    best_l1 = l1_candidates[0] if l1_candidates else None
+    best_path, best_depth, best_score = ranked[0]
 
-    if best_l3 and best_l3[1] >= MIN_MATCH_SCORE:
-        path, score = best_l3
-        if _should_use_l2_instead_of_l3(normalized, path):
-            parent_l2 = find_path_in_tree(path.l1, path.l2, "")
-            if parent_l2 and (not best_l2 or best_l2[1] < score):
-                return _build_result(parent_l2, mapped_level="L2", score=score, reason="需求覆盖整个 L2 类目范围")
+    if best_depth == 3 and best_score >= MIN_MATCH_SCORE:
+        if _should_use_l2_instead_of_l3(normalized, best_path):
+            parent_l2 = find_path_in_tree(best_path.l1, best_path.l2, "")
+            if parent_l2:
+                return _build_result(
+                    parent_l2,
+                    mapped_level="L2",
+                    score=best_score,
+                    reason="需求覆盖整个 L2 类目范围",
+                )
         return _build_result(
-            path,
+            best_path,
             mapped_level="L3",
-            score=score,
+            score=best_score,
             reason="需求可高概率由该 L3 覆盖",
             request_text=normalized,
         )
 
-    if best_l2 and best_l2[1] >= MIN_MATCH_SCORE:
-        return _build_result(best_l2[0], mapped_level="L2", score=best_l2[1], reason="需求覆盖整个 L2 类目范围")
+    if best_depth == 2 and best_score >= MIN_MATCH_SCORE:
+        return _build_result(
+            best_path,
+            mapped_level="L2",
+            score=best_score,
+            reason="需求覆盖整个 L2 类目范围",
+        )
 
-    if best_l1 and best_l1[1] >= MIN_MATCH_SCORE:
-        return _build_result(best_l1[0], mapped_level="L1", score=best_l1[1], reason="需求仅明确到 L1 类目")
+    if best_depth == 1 and best_score >= MIN_MATCH_SCORE:
+        return _build_result(
+            best_path,
+            mapped_level="L1",
+            score=best_score,
+            reason="需求仅明确到 L1 类目",
+        )
 
     return CategoryMappingResult(
         is_relevant=False,
@@ -298,23 +354,59 @@ def _is_broad_pet_food_request(request_text: str, category_text: str, normalized
     return has_broad and not has_specific
 
 
-def _rank_paths(normalized: str, paths: list[CategoryTreePath]) -> list[tuple[CategoryTreePath, float]]:
-    ranked: list[tuple[CategoryTreePath, float]] = []
+def rank_paths_by_depth(
+    normalized: str,
+    paths: list[CategoryTreePath],
+) -> list[tuple[CategoryTreePath, int, float]]:
+    """Rank paths by deepest match first, then score within that depth."""
+    ranked: list[tuple[CategoryTreePath, int, float]] = []
     for path in paths:
-        score = _score_path(normalized, path)
-        if score > 0:
-            ranked.append((path, score))
-    ranked.sort(key=lambda item: item[1], reverse=True)
+        depth, score = path_match_key(normalized, path)
+        if depth > 0 and score > 0:
+            ranked.append((path, depth, score))
+    ranked.sort(key=lambda item: (item[1], item[2]), reverse=True)
     return ranked
 
 
-def _score_path(normalized: str, path: CategoryTreePath) -> float:
-    scores = [
-        _score_node(normalized, path.l1, weight=1.0),
-        _score_node(normalized, path.l2, weight=1.2) if path.l2 else 0.0,
-        _score_node(normalized, path.l3, weight=1.5) if path.l3 else 0.0,
-    ]
-    return max(scores)
+def path_match_key(normalized: str, path: CategoryTreePath) -> tuple[int, float]:
+    """Return the deepest level with a positive match score for this path."""
+    for depth, name, weight in (
+        (3, path.l3, 1.5),
+        (2, path.l2, 1.2),
+        (1, path.l1, 1.0),
+    ):
+        if not name:
+            continue
+        score = _score_node(normalized, name, weight=weight)
+        if score <= 0:
+            continue
+        if depth == 1 and _is_generic_l1_only_match(normalized, name):
+            continue
+        return depth, score
+    return 0, 0.0
+
+
+def is_strict_ancestor_path(ancestor_path: str, descendant_path: str) -> bool:
+    """True when ancestor_path is a strict prefix of descendant_path."""
+    ancestor = ancestor_path.strip()
+    descendant = descendant_path.strip()
+    if not ancestor or not descendant or ancestor == descendant:
+        return False
+    return descendant.startswith(f"{ancestor} > ")
+
+
+def _is_generic_l1_only_match(normalized: str, l1_name: str) -> bool:
+    node_norm = _normalize_text(l1_name)
+    if node_norm not in GENERIC_L1_TERMS:
+        return False
+    return _has_specific_product_terms(normalized)
+
+
+def _has_specific_product_terms(normalized: str) -> bool:
+    tokens = set(_tokenize(normalized))
+    if tokens & SPECIFIC_PRODUCT_TERMS:
+        return True
+    return any(term in normalized for term in ("智能", "自动", "电动"))
 
 
 def _score_node(normalized: str, node_name: str, *, weight: float) -> float:
@@ -323,12 +415,36 @@ def _score_node(normalized: str, node_name: str, *, weight: float) -> float:
         return 0.0
     if node_norm in normalized:
         return 1.0 * weight
-    node_tokens = set(_tokenize(node_norm))
-    req_tokens = set(_tokenize(normalized))
+    node_tokens = _meaningful_token_set(node_norm)
+    req_tokens = _meaningful_token_set(normalized)
     if not node_tokens:
         return 0.0
-    overlap = len(node_tokens & req_tokens) / len(node_tokens)
+    overlap = len(_token_overlap(node_tokens, req_tokens)) / len(node_tokens)
     return overlap * weight
+
+
+def _meaningful_token_set(text: str) -> set[str]:
+    return {token for token in _tokenize(text) if token not in TOKEN_STOP_WORDS and len(token) > 1}
+
+
+def _token_overlap(left: set[str], right: set[str]) -> set[str]:
+    matched: set[str] = set()
+    for left_token in left:
+        left_variants = _token_variants(left_token)
+        for right_token in right:
+            if left_variants & _token_variants(right_token):
+                matched.add(left_token)
+                break
+    return matched
+
+
+def _token_variants(token: str) -> set[str]:
+    variants = {token}
+    if token.endswith("s") and len(token) > 3:
+        variants.add(token[:-1])
+    elif not token.endswith("s"):
+        variants.add(f"{token}s")
+    return variants
 
 
 def _normalize_text(text: str) -> str:

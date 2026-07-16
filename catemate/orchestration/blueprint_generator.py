@@ -8,6 +8,11 @@ from typing import Any
 from pydantic import ValidationError
 
 from catemate.ai.client import CateMateAIClient
+from catemate.core.output_policy import (
+    is_forbidden_module,
+    sanitize_output_grains,
+    sanitize_presentation,
+)
 from catemate.orchestration.blueprint_validator import validate_blueprint_against_catalog
 from catemate.orchestration.module_catalog_builder import (
     build_module_catalog_for_blueprint,
@@ -20,11 +25,6 @@ from catemate.understanding.schemas import AnalysisIntent, InferredCategoryCandi
 _SECTION_BINDINGS: dict[str, tuple[str, str, str]] = {
     "s_market_trend": ("monthly_market_trend", "gmv", "category"),
     "s_orders_trend": ("monthly_market_trend", "orders", "category"),
-    "s_top_shop": ("top_shop", "gmv", "shop"),
-    "s_daily_cncb": ("daily_cncb_performance", "orders", "category"),
-    "s_price_tier": ("price_tier_distribution", "gmv", "category"),
-    "s_keywords": ("keywords", "clicks", "category"),
-    "s_top_listing": ("top_listing", "gmv", "item"),
     "s_top_sku": ("top_sku_info", "orders", "item"),
 }
 
@@ -123,8 +123,28 @@ def normalize_llm_payload(
             expected_shape = {}
 
         module_id = str(item.get("module_id") or "").strip()
+        if module_id and is_forbidden_module(module_id):
+            continue
         metric_id = str(item.get("metric_id") or "").strip()
         grain = str(item.get("grain") or "").strip()
+
+        if not expected_shape.get("metrics") and metric_id:
+            expected_shape["metrics"] = [metric_id]
+
+        if expected_shape.get("grain"):
+            expected_shape["grain"] = sanitize_output_grains(
+                [str(g) for g in expected_shape.get("grain") or []]
+            )
+        elif module_id:
+            module_entry = catalog_by_id.get(module_id) or {}
+            output_grains = module_entry.get("output_grains") or []
+            if output_grains:
+                expected_shape["grain"] = sanitize_output_grains([str(g) for g in output_grains])
+
+        if expected_shape.get("presentation"):
+            expected_shape["presentation"] = sanitize_presentation(
+                str(expected_shape.get("presentation") or "")
+            )
 
         if module_id and not metric_id:
             module_entry = catalog_by_id.get(module_id) or {}
@@ -134,12 +154,6 @@ def normalize_llm_payload(
 
         if not expected_shape.get("metrics") and metric_id:
             expected_shape["metrics"] = [metric_id]
-
-        if not expected_shape.get("grain"):
-            module_entry = catalog_by_id.get(module_id) or {}
-            output_grains = module_entry.get("output_grains") or []
-            if output_grains:
-                expected_shape["grain"] = list(output_grains)
 
         sections.append(
             {
@@ -199,42 +213,6 @@ def _build_with_rules(
                     grain=["grass_region", "grass_month"],
                     metrics=["gmv"],
                     presentation="trend_table",
-                ),
-            )
-        )
-
-    if AnalysisIntent.TOP_SHOP in intents:
-        module_id, metric_id, grain = _SECTION_BINDINGS["s_top_shop"]
-        sections.append(
-            BlueprintSection(
-                section_id="s_top_shop",
-                title="头部店铺对比",
-                sub_question=f"{category} 在 {sites_label} 哪些头部 shop 贡献最大？",
-                module_id=module_id,
-                metric_id=metric_id,
-                grain=grain,
-                expected_shape=ExpectedShape(
-                    grain=["shop_id", "grass_region"],
-                    metrics=["gmv"],
-                    presentation="ranked_table",
-                ),
-            )
-        )
-
-    if AnalysisIntent.DAILY_PERFORMANCE in intents:
-        module_id, metric_id, grain = _SECTION_BINDINGS["s_daily_cncb"]
-        sections.append(
-            BlueprintSection(
-                section_id="s_daily_cncb",
-                title="日度 CNCB 表现",
-                sub_question=f"{category} 日度 Shopee / CNCB 订单与 GMV 如何？",
-                module_id=module_id,
-                metric_id=metric_id,
-                grain=grain,
-                expected_shape=ExpectedShape(
-                    grain=["grass_date", "grass_region"],
-                    metrics=["orders", "gmv"],
-                    presentation="daily_table",
                 ),
             )
         )

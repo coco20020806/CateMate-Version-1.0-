@@ -12,9 +12,9 @@ _SAMPLE_CATALOG = [
         "allowed_metrics": ["gmv", "orders", "aov"],
     },
     {
-        "module_id": "top_shop",
-        "allowed_grains": ["shop"],
-        "allowed_metrics": ["gmv"],
+        "module_id": "top_sku_info",
+        "allowed_grains": ["item"],
+        "allowed_metrics": ["orders", "gmv"],
     },
 ]
 
@@ -67,13 +67,13 @@ def test_invalid_grain_rejected() -> None:
         goal="测试",
         sections=[
             BlueprintSection(
-                section_id="s_top_shop",
-                title="头部店铺",
-                sub_question="哪些 shop 贡献最大？",
-                module_id="top_shop",
-                metric_id="gmv",
+                section_id="s_top_sku",
+                title="Top SKU",
+                sub_question="头部 SKU？",
+                module_id="top_sku_info",
+                metric_id="orders",
                 grain="category",
-                expected_shape=ExpectedShape(metrics=["gmv"]),
+                expected_shape=ExpectedShape(metrics=["orders"]),
             )
         ],
     )
@@ -97,3 +97,47 @@ def test_empty_sections_rejected() -> None:
     )
     assert valid is False
     assert any("at least one section" in error for error in errors)
+
+
+def test_forbidden_module_rejected() -> None:
+    blueprint = ReportBlueprint(
+        goal="测试",
+        sections=[
+            BlueprintSection(
+                section_id="s_daily",
+                title="日度",
+                sub_question="日度如何？",
+                module_id="daily_cncb_performance",
+                metric_id="orders",
+                grain="category",
+                expected_shape=ExpectedShape(metrics=["orders"]),
+            )
+        ],
+    )
+    valid, errors = validate_blueprint_against_catalog(blueprint, _SAMPLE_CATALOG)
+    assert valid is False
+    assert any("unknown module_id" in error or "forbidden" in error for error in errors)
+
+
+def test_forbidden_presentation_rejected() -> None:
+    blueprint = _valid_blueprint()
+    blueprint.sections[0].expected_shape.presentation = "daily_table"
+    valid, errors = validate_blueprint_against_catalog(blueprint, _SAMPLE_CATALOG)
+    assert valid is False
+    assert any("presentation" in error and "forbidden" in error for error in errors)
+
+
+def test_forbidden_output_grain_rejected() -> None:
+    blueprint = _valid_blueprint()
+    blueprint.sections[0].expected_shape.grain = ["grass_region", "grass_date"]
+    valid, errors = validate_blueprint_against_catalog(blueprint, _SAMPLE_CATALOG)
+    assert valid is False
+    assert any("expected_shape.grain" in error for error in errors)
+
+
+def test_daily_wording_in_title_rejected() -> None:
+    blueprint = _valid_blueprint()
+    blueprint.sections[0].title = "新加坡近期日度销量"
+    valid, errors = validate_blueprint_against_catalog(blueprint, _SAMPLE_CATALOG)
+    assert valid is False
+    assert any("daily output" in error for error in errors)

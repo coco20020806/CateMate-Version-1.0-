@@ -1,12 +1,30 @@
 # CateMate AI 核心导航
 
-## V2 迭代（2026-07-15）
+## V2 主链路（v1.1.0 · 2026-07-16）
 
-架构构想（**迭代中，非当前主链路**）：
+当前 **Streamlit 默认** `v2_solve_loop`；版本记录见 [`CHANGELOG.md`](../CHANGELOG.md)。
 
-- **`docs/CATEMATE_V2_DESIGN_OVERVIEW.md`** — Scope×Module、三维度 rawdata、澄清数据 loop、Data Workbook
+必读：
+
+- **`docs/CATEMATE_V2_DESIGN_OVERVIEW.md`** — Scope×Module、Solve Loop、Data Workbook
+- **`config/analysis_playbook.md`** — 蓝图章节（仅 2 active 模块）
+- **`config/output_grain_policy.yaml`** — 月度输出策略 + enabled 模块白名单
 - **`data_modules/AUTHORING_SPEC.md`** — 可执行模块写作指示
-- **`data_modules/monthly_market_trend/`** — 试点模块
+
+**Active 模块**（solve loop 唯一能力边界）：
+
+- `monthly_market_trend` — 月度 GMV / Orders / AOV
+- `top_sku_info` — Top SKU（配合 `scope/related.py` if_related 过滤）
+
+**Draft 模块**（有代码与单测，不参与编排）：`daily_cncb_performance`、`price_tier_distribution`、`top_shop`、`top_listing`、`keywords`
+
+校验：`python scripts/validate_v3_data_modules.py`
+
+Sub-L3 / if_related 关键代码：
+
+- `catemate/understanding/sub_l3_detector.py`
+- `catemate/understanding/concept_pack_generator.py`
+- `catemate/scope/related.py`
 
 ---
 
@@ -111,7 +129,7 @@ CateMate 是一个类目分析数据需求与 PPT-ready 数据生成系统。核
 - `CateMate_processeddata/processed_manifest.yaml` — **数据资产层**（processed table、字段、行数、源 workbook/sheet）
 - `config/data_modules/*.yaml` — **业务问题层**（一个业务问题一个模块：能回答什么、默认图表、排序规则、口径限制）
 
-当前 **active v2** 模块（planning agent 候选）：
+当前 **active v2 YAML** 模块（V1 planning agent，均已 deprecated，solve loop 不读）：
 - `config/data_modules/rm_monthly_category_performance.yaml`
 - `config/data_modules/dashboard_history_market_trend.yaml`
 - `config/data_modules/dashboard_daily_cncb_performance.yaml`
@@ -129,6 +147,18 @@ CateMate 是一个类目分析数据需求与 PPT-ready 数据生成系统。核
 - 给规划 agent / chart generation agent 机器读取；
 - 描述业务问题、source tables、字段语义、default_charts、limitations；
 - planning agent 应**优先读 v2 active 模块**，再按需引用 manifest 字段细节。
+
+### 4b. V3 可执行 Python 模块（solve loop）
+
+目录：`data_modules/<module_id>/`（`contract.yaml` + `compute.py`）
+
+当前 **active**（`load_v2_data_module_contracts(active_only=True)`）：
+- `monthly_market_trend`
+- `top_sku_info`
+
+其余为 **draft**（保留实现与 pytest，不参与 blueprint / 执行）。
+
+校验：`scripts/validate_v3_data_modules.py`
 
 ### 5. Processed Data 设计
 

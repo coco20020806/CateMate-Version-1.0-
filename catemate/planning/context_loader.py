@@ -276,22 +276,37 @@ def _summarize_data_module(module: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
-def load_v2_data_module_contracts(directory: Path | None = None) -> list[dict[str, Any]]:
-    """Load V2 Python module contracts from data_modules/<id>/contract.yaml."""
+def load_v2_data_module_contracts(
+    directory: Path | None = None,
+    *,
+    active_only: bool = True,
+) -> list[dict[str, Any]]:
+    """Load V2 Python module contracts from data_modules/<id>/contract.yaml.
+
+    When active_only is True (default), only contracts with status=active are returned.
+    Draft and deprecated modules are excluded from solve-loop orchestration.
+    """
     root = directory or V2_DATA_MODULES_DIR
     if not root.exists():
         return []
     modules: list[dict[str, Any]] = []
     for contract_path in sorted(root.glob("*/contract.yaml")):
         payload = _load_yaml(contract_path)
-        if isinstance(payload, dict):
-            module = dict(payload)
-            module["_config_path"] = str(contract_path)
-            modules.append(module)
+        if not isinstance(payload, dict):
+            continue
+        if active_only and str(payload.get("status", "active")).lower() != "active":
+            continue
+        module = dict(payload)
+        module["_config_path"] = str(contract_path)
+        modules.append(module)
     return modules
 
 
-def summarize_v2_modules_for_planning(directory: Path | None = None) -> list[dict[str, Any]]:
+def summarize_v2_modules_for_planning(
+    directory: Path | None = None,
+    *,
+    active_only: bool = True,
+) -> list[dict[str, Any]]:
     return [
         {
             "module_id": m.get("module_id", ""),
@@ -300,5 +315,5 @@ def summarize_v2_modules_for_planning(directory: Path | None = None) -> list[dic
             "description": (m.get("business_purpose") or {}).get("description", ""),
             "typical_questions": (m.get("business_purpose") or {}).get("typical_questions") or [],
         }
-        for m in load_v2_data_module_contracts(directory)
+        for m in load_v2_data_module_contracts(directory, active_only=active_only)
     ]

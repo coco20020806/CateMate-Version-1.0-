@@ -9,11 +9,6 @@ from catemate.understanding.schemas import InferredCategoryCandidate, Requiremen
 _SECTION_MODULE_MAP = {
     "s_market_trend": ("monthly_market_trend", "gmv", "category"),
     "s_orders_trend": ("monthly_market_trend", "orders", "category"),
-    "s_top_shop": ("top_shop", "gmv", "shop"),
-    "s_daily_cncb": ("daily_cncb_performance", "orders", "category"),
-    "s_price_tier": ("price_tier_distribution", "gmv", "category"),
-    "s_keywords": ("keywords", "clicks", "category"),
-    "s_top_listing": ("top_listing", "gmv", "item"),
     "s_top_sku": ("top_sku_info", "orders", "item"),
 }
 

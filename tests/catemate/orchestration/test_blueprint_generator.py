@@ -6,8 +6,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from catemate.orchestration.blueprint_generator import build_report_blueprint, normalize_llm_payload
-from catemate.orchestration.plan_composer import compose_analysis_plan
-from catemate.orchestration.schemas import BlueprintSection, ExpectedShape, ReportBlueprint
+from catemate.orchestration.module_catalog_builder import build_module_catalog_for_blueprint
 from catemate.understanding.schemas import (
     AnalysisIntent,
     RequirementReadiness,
@@ -26,20 +25,6 @@ def _sample_spec() -> RequirementUnderstandingSpec:
             target_sites=["SG"],
             target_category_text="Stationery",
             analysis_intents=[AnalysisIntent.MARKET_TREND],
-        ),
-        readiness=RequirementReadiness(can_select_modules=True),
-    )
-
-
-def _top_shop_spec() -> RequirementUnderstandingSpec:
-    return RequirementUnderstandingSpec(
-        case_id="test_shop",
-        status=UnderstandingStatus.READY_FOR_MODULE_SELECTION,
-        original_request="SG Stationery top shops",
-        understood=UnderstoodRequirement(
-            target_sites=["SG"],
-            target_category_text="Stationery",
-            analysis_intents=[AnalysisIntent.TOP_SHOP],
         ),
         readiness=RequirementReadiness(can_select_modules=True),
     )
@@ -122,33 +107,48 @@ def test_normalize_llm_payload_fills_missing_metrics() -> None:
     assert normalized["loop_iteration"] == 2
 
 
-def test_rules_top_shop_section_uses_top_shop_module() -> None:
-    blueprint = build_report_blueprint(_top_shop_spec())
-    plan = compose_analysis_plan(blueprint, _top_shop_spec())
-    shop_runs = [run for run in plan.runs if run.section_id == "s_top_shop"]
-    assert len(shop_runs) == 1
-    assert shop_runs[0].module_id == "top_shop"
+def test_module_catalog_has_only_active_modules() -> None:
+    catalog = build_module_catalog_for_blueprint(include_manifest=False)
+    ids = [entry["module_id"] for entry in catalog]
+    assert ids == ["monthly_market_trend", "top_sku_info"]
 
 
-def test_llm_blueprint_top_shop_binding_respected_by_plan_composer() -> None:
-    blueprint = ReportBlueprint(
-        goal="top shops",
-        sections=[
-            BlueprintSection(
-                section_id="s_top_shop",
-                title="头部店铺",
-                sub_question="哪些 shop 贡献最大？",
-                module_id="top_shop",
-                metric_id="gmv",
-                grain="shop",
-                expected_shape=ExpectedShape(
-                    grain=["shop_id", "grass_region"],
-                    metrics=["gmv"],
-                    presentation="ranked_table",
-                ),
-            )
+def test_llm_draft_module_falls_back_to_rules() -> None:
+    ai_client = MagicMock()
+    payload = _llm_payload()
+    payload["sections"][0]["module_id"] = "daily_cncb_performance"
+    payload["sections"][0]["metric_id"] = "orders"
+    ai_client.complete_json.return_value = payload
+    metadata: dict[str, Any] = {}
+    blueprint = build_report_blueprint(_sample_spec(), ai_client=ai_client, metadata=metadata)
+    assert metadata["blueprint_source"] == "rules"
+    assert "blueprint_llm_errors" in metadata
+
+
+def test_normalize_llm_payload_drops_forbidden_module() -> None:
+    payload = {
+        "goal": "测试",
+        "sections": [
+            {
+                "section_id": "s_daily",
+                "title": "日度",
+                "sub_question": "日度？",
+                "module_id": "daily_cncb_performance",
+                "metric_id": "orders",
+                "grain": "category",
+                "expected_shape": {
+                    "grain": ["grass_region", "date"],
+                    "metrics": ["orders"],
+                    "presentation": "daily_table",
+                },
+            },
+            _llm_payload()["sections"][0],
         ],
-    )
-    plan = compose_analysis_plan(blueprint, _top_shop_spec())
-    assert plan.runs[0].module_id == "top_shop"
-    assert plan.runs[0].grain == "shop"
+    }
+    catalog = build_module_catalog_for_blueprint(include_manifest=False)
+    normalized = normalize_llm_payload(payload, loop_iteration=1, catalog=catalog)
+    assert len(normalized["sections"]) == 1
+    assert normalized["sections"][0]["module_id"] == "monthly_market_trend"
+    assert normalized["sections"][0]["expected_shape"]["presentation"] == "trend_table"
+    assert "grass_date" not in normalized["sections"][0]["expected_shape"]["grain"]
+    assert "date" not in normalized["sections"][0]["expected_shape"]["grain"]

@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from catemate.core.output_policy import (
+    is_forbidden_module,
+    is_forbidden_presentation,
+    section_has_daily_wording,
+    validate_output_grain,
+)
 from catemate.orchestration.schemas import ReportBlueprint
 
 _VALID_GRAINS = {"category", "shop", "item"}
@@ -64,6 +70,25 @@ def validate_blueprint_against_catalog(
         if module_entry is None:
             errors.append(f"{prefix}: unknown module_id {module_id!r}")
             continue
+
+        if is_forbidden_module(module_id):
+            errors.append(f"{prefix}: module_id {module_id!r} is forbidden by output grain policy")
+
+        presentation = str(section.expected_shape.presentation or "").strip()
+        if is_forbidden_presentation(presentation):
+            errors.append(
+                f"{prefix}: presentation {presentation!r} is forbidden by output grain policy"
+            )
+
+        shape_grains = [str(g) for g in section.expected_shape.grain or []]
+        grain_violations = validate_output_grain(shape_grains)
+        if grain_violations:
+            errors.append(
+                f"{prefix}: expected_shape.grain contains forbidden values {grain_violations}"
+            )
+
+        if section_has_daily_wording(section.title, section.sub_question):
+            errors.append(f"{prefix}: section wording implies daily output, which is forbidden")
 
         allowed_grains = [str(g) for g in module_entry.get("allowed_grains") or []]
         if allowed_grains and grain not in allowed_grains:

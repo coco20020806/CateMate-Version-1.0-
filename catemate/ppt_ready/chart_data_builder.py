@@ -9,6 +9,7 @@ from typing import Any
 import pandas as pd
 
 from catemate.core.paths import PROJECT_ROOT
+from catemate.orchestration.module_registry import is_active_v2_module
 from catemate.planning.schemas import PlanningChartProposal, RequirementPlanningSpec
 from catemate.ppt_ready.field_utils import (
     MONTH_TIME_FIELDS,
@@ -424,12 +425,14 @@ def _build_trend_sheet(
     df: pd.DataFrame,
     notes: list[str],
 ) -> PptReadySheetSpec:
+    force_monthly = is_active_v2_module(chart.data_module_id)
     time_candidates, is_daily, daily_note = resolve_trend_time_fields(
         table_ids=[table_id],
         chart_id=chart_id,
         chart_title=chart.title,
         grain=chart.grain,
         preferred_from_chart=list(chart.dimensions),
+        force_monthly=force_monthly,
     )
     time_field = first_existing(df, time_candidates)
     if is_daily:

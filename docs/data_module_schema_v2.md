@@ -211,6 +211,14 @@ v2 对应关系：
 
 `context_loader` 会同时摘要 v1/v2 字段，但 **只加载 `status: active` 的模块**。
 
+### V3 Python 模块（`data_modules/<id>/contract.yaml`）
+
+- 加载函数：`load_v2_data_module_contracts(directory, active_only=True)`（默认 `active_only=True`）
+- **仅 `status: active`** 进入 V2 solve loop（蓝图 catalog、plan、execution）
+- `draft` / `deprecated` 不参与编排；保留 `compute.py` 供单测与后续启用
+- 当前 active：`monthly_market_trend`、`top_sku_info`
+- 校验：`python scripts/validate_v3_data_modules.py`
+
 ## 文件约定
 
 - 模板：`config/data_modules/_template.yaml`（以下划线开头，loader 自动跳过）

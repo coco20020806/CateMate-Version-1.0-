@@ -2,6 +2,27 @@
 
 本目录存放**目录化、可执行**的数据模块。与旧版 `config/data_modules/*.yaml`（v2 扁平说明书）分离。
 
+## Active 与 Draft
+
+**Active module 是 V2 solve loop 的唯一能力边界。** 仅 `contract.yaml` 中 `status: active` 的模块会进入：
+
+- 蓝图 LLM 的 `module_catalog`
+- `plan_composer` / `catalog_checker` / `execution` 链路
+
+| 状态 | module_id | 说明 |
+|------|-----------|------|
+| **active** | `monthly_market_trend` | 月度 GMV / Orders / AOV 趋势 |
+| **active** | `top_sku_info` | Top SKU 排名（item 粒度） |
+| draft | `daily_cncb_performance` | 保留实现；solve loop 未启用 |
+| draft | `price_tier_distribution` | 同上 |
+| draft | `top_shop` | 同上 |
+| draft | `top_listing` | 同上 |
+| draft | `keywords` | 同上 |
+
+加载入口：[`catemate/planning/context_loader.py`](../catemate/planning/context_loader.py) 的 `load_v2_data_module_contracts(active_only=True)`（默认仅 active）。
+
+校验：`python scripts/validate_v3_data_modules.py`
+
 ## 新建模块（推荐流程）
 
 ```text
@@ -10,6 +31,7 @@
 3. 告诉 Agent：「按录入稿生成 <module_id>」
 4. Agent 读 AUTHORING_SPEC.md → 生成目录 + 单测
 5. pytest tests/data_modules/<module_id>/
+6. 评审通过后将 contract.yaml 的 status 改为 active
 ```
 
 | 文件 | 用途 |
@@ -20,13 +42,6 @@
 | `<module_id>/source_schema.yaml` | 源列名 + compute/transform 规则 |
 | `<module_id>/` | contract、compute.py、transforms.py |
 | `<module_id>_review.md` | 人读批注 / 摘要 |
-
-## 当前模块
-
-| module_id | pattern | 批注/录入 |
-|-----------|---------|-----------|
-| `monthly_market_trend` | `monthly_metric_trend` | `monthly_market_trend_review.md` |
-| `top_sku_info` | `custom`（Top N SKU） | `top_sku_info_INTAKE.md` / `top_sku_info_review.md` |
 
 ## 架构要点
 

@@ -6,10 +6,11 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](requirements.txt)
 [![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B)](app/streamlit_dashboard.py)
 [![V2](https://img.shields.io/badge/V2-Solve_Loop_主链路-green)](docs/CATEMATE_V2_DESIGN_OVERVIEW.md)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue)](CHANGELOG.md)
 
 **个人 AI Demo 项目，非生产系统。** 仓库不含真实业务源数据，请用 [`examples/`](examples/) 合成数据体验。
 
-中文操作说明 → [README_使用说明.md](README_使用说明.md)
+中文操作说明 → [README_使用说明.md](README_使用说明.md) · 版本记录 → [CHANGELOG.md](CHANGELOG.md)
 
 ---
 
@@ -21,7 +22,7 @@ Streamlit 默认模式为 **`v2_solve_loop`**，主交付物为 **`data_workbook
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| **0** | 可执行 data modules（`compute.py` + pytest） | ✅ 7 个模块已落地 |
+| **0** | 可执行 data modules（`compute.py` + pytest） | ✅ 2 active + 5 draft |
 | **1** | `rawdata_catalog.yaml` + 三维度源表登记 | ✅ 已落地 |
 | **2** | Scope 取数层（`catemate/scope/`） | ✅ 已落地 |
 | **3** | 意图编排 Solve Loop + 数据澄清 ingest | ✅ 已落地 |
@@ -29,17 +30,16 @@ Streamlit 默认模式为 **`v2_solve_loop`**，主交付物为 **`data_workbook
 | **5** | 用 V2 模块逐步替换 V1 YAML 模块 | 🔄 进行中 |
 | **6** | PPT-ready / HTML 从 Data Workbook 消费 | 🔄 部分可用 |
 
-**已实现的 V2 数据模块**（`data_modules/`）：
+**V2 solve loop 已启用模块**（`contract.yaml` 中 `status: active`）：
 
 | module_id | 用途 |
 |-----------|------|
-| `monthly_market_trend` | 月度 GMV / Orders / AOV 趋势（试点 pattern） |
-| `daily_cncb_performance` | 日度 Shopee / CNCB 表现 |
-| `price_tier_distribution` | 价格段分布 |
-| `top_shop` | 头部店铺 |
-| `top_listing` | 头部 listing |
+| `monthly_market_trend` | 月度 GMV / Orders / AOV 趋势 |
 | `top_sku_info` | Sub-L3 / 相关概念包下的 Top SKU |
-| `keywords` | 关键词搜索 |
+
+**Draft 模块**（保留 `compute.py` 与单测，不参与 blueprint / 执行）：`daily_cncb_performance`、`price_tier_distribution`、`top_shop`、`top_listing`、`keywords`
+
+校验：`python scripts/validate_v3_data_modules.py`
 
 完整 V2 设计 → [docs/CATEMATE_V2_DESIGN_OVERVIEW.md](docs/CATEMATE_V2_DESIGN_OVERVIEW.md)
 
@@ -100,53 +100,54 @@ CateMate/
 ```text
 分析菲律宾（PH）Pets > Pet Accessories > Bowls & Feeders 类目下
 「智能宠物碗」相关商品：
-1）最近几个月 GMV 与订单趋势；
-2）价格带分布；
-3）热门搜索词；
-4）头部 SKU 列表（用于对标选品）。
+1）最近几个月 GMV 与订单趋势（L3 大盘）；
+2）智能宠物碗子集下的头部 SKU 列表（用于对标选品）。
 ```
+
+> v1.1.0 仅 **2 个 active 模块**参与 solve loop；用户若提到价格带、关键词等，会在 Gaps 中标注为当前不支持，不会调用 draft 模块。
 
 ### 求解流程
 
 ```mermaid
 flowchart TB
-  IN["📝 自然语言需求<br/>PH 智能宠物碗趋势 + 价格带 + 关键词 + Top SKU"]
+  IN["自然语言需求: PH 智能宠物碗"]
 
-  subgraph phase1 [阶段 1 · 理解与确认]
-    CC[Case Config 生成]
+  subgraph phase1 [阶段1 理解与确认]
+    CC[Case Config]
     UG[需求理解]
-    G0{{Gate A0<br/>类目定位确认}}
-    G1{{Gate A1<br/>业务澄清}}
-    IN --> CC --> UG --> G0 --> G1
+    G0{{Gate A0 类目确认}}
+    CP[生成 RelatedConceptPack]
+    G1{{Gate A1 业务澄清}}
+    IN --> CC --> UG --> G0 --> CP --> G1
   end
 
-  subgraph phase2 [阶段 2 · V2 Solve Loop]
-    BP[报告蓝图<br/>读 analysis_playbook.md]
-    AP[AnalysisPlan<br/>grain × module × metric]
+  subgraph phase2 [阶段2 V2 Solve Loop]
+    BP["Blueprint 仅2个active模块"]
+    AP[AnalysisPlan]
     CK[rawdata catalog 检查]
-    G2{{Gate A2<br/>数据澄清<br/>贴文件路径}}
+    G2{{Gate A2 数据澄清}}
     BP --> AP --> CK
-    CK -->|缺 top_shop 等| G2 --> INGEST[路径 ingest + 预处理] --> CK
-    CK -->|齐或用户跳过| EXEC
+    CK -->|缺源| G2 --> INGEST[路径 ingest] --> CK
+    CK -->|齐或跳过| EXEC
   end
 
-  subgraph phase3 [阶段 3 · 确定性执行]
+  subgraph phase3 [阶段3 确定性执行]
     EXEC[Scope 取数]
+    IFR[apply_if_related 过滤]
     M1[monthly_market_trend]
-    M2[price_tier_distribution]
-    M3[keywords]
-    M4[top_sku_info + related filter]
-    EXEC --> M1 & M2 & M3 & M4
+    M2[top_sku_info]
+    EXEC --> IFR --> M2
+    EXEC --> M1
   end
 
-  subgraph phase4 [阶段 4 · 交付]
-    VF[Solve Verifier<br/>solved / partial]
-    DWB[Data Workbook<br/>Plan + Data sheets + Gaps]
-    HTML[HTML 预览 可选]
-    M1 & M2 & M3 & M4 --> VF --> DWB --> HTML
+  subgraph phase4 [阶段4 交付]
+    VF[Solve Verifier]
+    DWB[Data Workbook]
+    G1 --> BP
+    M1 --> VF
+    M2 --> VF
+    VF --> DWB
   end
-
-  G1 --> BP
 ```
 
 ### 各阶段产物
@@ -155,23 +156,23 @@ flowchart TB
 |------|------|------|------|
 | 1 | Case Config | `generated_case_config_*.yaml` | 结构化 case 草稿 |
 | 2 | 需求理解 | `requirement_understanding_*.json` | 站点、类目、分析意图 |
-| 3 | **Gate A0** | 更新 understanding | 确认 L1/L2/L3 类目映射 |
-| 4 | **Gate A1** | 澄清答案合并 | 确认时间范围、分析优先级等 |
-| 5 | 报告蓝图 | `report_blueprint_*.json` | 按 playbook 拆成 3–8 个可验证章节 |
+| 3 | **Gate A0** | 更新 understanding | 确认 L1/L2/L3；检测 Sub-L3 |
+| 3b | Concept Pack | `related_concept_pack` | 为「智能宠物碗」生成 include/exclude 词表 |
+| 4 | **Gate A1** | 澄清答案合并 | 确认时间范围等；「最近」解释为最近若干完整月份 |
+| 5 | 报告蓝图 | `report_blueprint_*.json` | 仅引用 2 个 active 模块 |
 | 6 | 分析计划 | `analysis_plan_*.json` | 每章绑定 module_id + metric + grain |
-| 7 | **Gate A2** | rawdata 澄清（可选） | 缺 `dashboard_top_shop` 等时请用户贴路径 |
-| 8 | Scope + Compute | 各 module 主表 / 延伸表 | `ScopedFrame` → `data_modules/*/compute.py` |
-| 9 | 验证 | `solve_verdict_*.json` | `solved` 或 `partial`（有 Gaps 说明） |
+| 7 | **Gate A2** | rawdata 澄清（可选） | 缺 item 源表时请用户贴路径 |
+| 8 | Scope + if_related + Compute | 主表 / 延伸表 | L3 Scope → trend；item Scope → if_related → Top SKU |
+| 9 | 验证 | `solve_verdict_*.json` | `solved` 或 `partial`（Gaps 说明未覆盖项） |
 | 10 | 交付 | `data_workbook_*.xlsx` | Plan / Data.\<table_id\> / Gaps |
 
-### 本示例对应的模块编排（示意）
+### 本示例对应的模块编排（v1.1.0 active only）
 
 | 子问题 | module_id | grain | 输出 |
 |--------|-----------|-------|------|
-| GMV / 订单月度趋势 | `monthly_market_trend` | category | 趋势主表 + 站点占比延伸表 |
-| 价格带分布 | `price_tier_distribution` | category | 价格段 ADG/ADO 表 |
-| 热门搜索词 | `keywords` | category | 关键词排名表 |
-| 智能宠物碗 Top SKU | `top_sku_info` | item | related concept 过滤后 Top N |
+| L3 大盘 GMV / 订单月度趋势 | `monthly_market_trend` | category | 趋势主表 + 站点占比延伸表 |
+| 智能宠物碗 Top SKU | `top_sku_info` | item | `apply_if_related` 过滤后 Top N |
+| 价格带 / 关键词（用户提及） | — | — | 记入 Gaps，当前无 active 模块 |
 
 ---
 
@@ -258,6 +259,7 @@ python scripts/run_category_requirement_case.py examples/cases/demo_stationery_s
 
 | 文档 | 内容 |
 |------|------|
+| [**CHANGELOG.md**](CHANGELOG.md) | **版本记录（当前 v1.1.0）** |
 | [**CATEMATE_V2_DESIGN_OVERVIEW.md**](docs/CATEMATE_V2_DESIGN_OVERVIEW.md) | V2 完整设计 |
 | [CATEMATE_V1_DESIGN_OVERVIEW.md](docs/CATEMATE_V1_DESIGN_OVERVIEW.md) | V1 架构（兼容链路） |
 | [PROJECT_LAYOUT.md](docs/PROJECT_LAYOUT.md) | 目录结构详解 |

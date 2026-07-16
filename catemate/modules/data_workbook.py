@@ -132,8 +132,12 @@ def _write_sheet(wb: Workbook, title: str, headers: list[str], rows: list) -> No
 
 
 def _write_dataframe(ws, df: pd.DataFrame) -> None:
+    note = _monthly_aggregation_note(df)
+    if note:
+        ws.append([note])
+    header_row = ws.max_row + 1
     ws.append(list(df.columns))
-    for cell in ws[1]:
+    for cell in ws[header_row]:
         cell.font = Font(bold=True)
     for record in df.itertuples(index=False, name=None):
         ws.append(list(record))
@@ -143,3 +147,10 @@ def _safe_sheet_name(name: str) -> str:
     invalid = set(r'[]:*?/\\')
     cleaned = "".join("_" if ch in invalid else ch for ch in name)
     return cleaned[:31] or "Data"
+
+
+def _monthly_aggregation_note(df: pd.DataFrame) -> str:
+    columns = {str(col).strip().lower() for col in df.columns}
+    if "grass_month" in columns or "month" in columns:
+        return "注：本表为月度聚合数据（grass_month/month）。"
+    return ""

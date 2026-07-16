@@ -17,8 +17,8 @@ def test_monthly_market_trend_allows_three_grains() -> None:
     assert grains == ["category", "shop", "item"]
 
 
-def test_top_listing_only_item_grain() -> None:
-    grains = allowed_grains("top_listing")
+def test_top_sku_info_only_item_grain() -> None:
+    grains = allowed_grains("top_sku_info")
     assert grains == ["item"]
 
 
@@ -27,13 +27,13 @@ def test_resolve_table_id_category_dashboard_history() -> None:
     assert table_id in {"dashboard_history", "rm_raw_data"}
 
 
-def test_validate_run_source_rejects_invalid_grain() -> None:
-    assert not validate_run_source("keywords", "shop", "shop_monthly_sales")
+def test_validate_run_source_rejects_unknown_module() -> None:
+    assert not validate_run_source("keywords", "category", "dashboard_keywords")
 
 
-def test_resolve_table_id_rejects_invalid_grain() -> None:
+def test_resolve_table_id_rejects_unknown_module() -> None:
     with pytest.raises(ValueError, match="does not allow grain"):
-        resolve_table_id("keywords", "shop")
+        resolve_table_id("keywords", "category")
 
 
 def test_get_source_bindings_has_loader_modes() -> None:

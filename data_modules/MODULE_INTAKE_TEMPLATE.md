@@ -17,7 +17,7 @@
 | `module_id`（英文 snake_case） | |
 | `module_name`（中文名） | |
 | `module_type`（如 market_trend / share / listing） | |
-| `status` | active / draft |
+| `status` | draft（默认）；经评审后改为 active 方可进入 solve loop |
 | 替代的旧 v2 模块（无则留空） | |
 
 ---

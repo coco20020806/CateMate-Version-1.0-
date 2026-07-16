@@ -26,17 +26,19 @@ from catemate.understanding.schemas import (
 def main() -> None:
     spec = RequirementUnderstandingSpec(
         status=UnderstandingStatus.READY_FOR_MODULE_SELECTION,
-        original_request="分析菲律宾站智能宠物碗",
+        original_request="新加坡和越南市场的智能宠物碗的类目趋势与产品概括",
         understood=UnderstoodRequirement(target_category_text="智能宠物碗"),
         readiness=RequirementReadiness(can_select_modules=True),
     )
     assert not is_category_confirmation_complete(spec)
 
     spec = initialize_category_positioning(spec)
-    assert spec.understood.category_positioning.proposed_candidates
+    proposed = spec.understood.category_positioning.proposed_candidates
+    assert proposed
+    assert proposed[0].category_path == "Pets > Pet Accessories > Bowls & Feeders"
     assert not can_confirm_selection([])
 
-    path = spec.understood.category_positioning.proposed_candidates[0].category_path
+    path = proposed[0].category_path
     spec = confirm_categories(spec, [path])
     assert is_category_confirmation_complete(spec)
     print("validate_category_confirmation_gate: OK")

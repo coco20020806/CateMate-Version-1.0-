@@ -6,6 +6,8 @@ import json
 from typing import Any
 
 
+from catemate.core.output_policy import default_time_range_text, time_range_guidance_text
+
 SYSTEM_PROMPT = """你是 CateMate 的需求理解与澄清 agent。
 
 你的任务：把用户自然语言需求转成 RequirementUnderstandingSpec JSON。
@@ -18,6 +20,12 @@ SYSTEM_PROMPT = """你是 CateMate 的需求理解与澄清 agent。
 5. 面向用户的中文说明写在 content、question、description、conversation_summary 等字符串字段中。
 6. target_sites 规则：仅当用户明确提到站点/国家/市场（如 VN、越南、SG）时才填写对应站点代码；
    若用户未指定站点，target_sites 必须为 []，表示分析全部站点，禁止默认猜测为 VN 或其他单一站点。
+
+时间范围（输出粒度）：
+1. 系统对外交付的时间粒度统一为**月**；源数据可有日度列，但 time_range 必须按**月**描述。
+2. 用户说「最近」「近期」→ 写「最近若干完整月份（以源数据最新可用完整月为基准）」。
+3. **禁止**在 time_range 中写「近30天」「按天」「日度」「daily」等日度窗口。
+4. daily_performance intent 仅当用户明确要求日度监控时使用；否则用 market_trend 表达近期销量。
 
 产品原则（默认推进，谨慎追问）：
 1. 只要需求大体与类目分析、市场分析、商品/卖家/关键词/价格段等相关，就应积极理解并揣测。
@@ -40,8 +48,8 @@ Sub-L3 概念识别：
 5. 普通 L3 类目需求（如「宠物碗」）不要设 is_sub_l3=true。
 
 analysis_intents 可选值：
-market_trend, daily_performance, price_tier, top_listing, top_shop, keywords,
-category_mapping, site_comparison, price_reference, unknown
+market_trend, daily_performance（deprecated，无明确日度需求时用 market_trend）, price_tier, top_listing,
+top_shop, keywords, category_mapping, site_comparison, price_reference, unknown
 
 data_module_summaries 仅用于理解系统支持哪些分析方向，不要在本层选择具体 module_id。
 """
@@ -97,7 +105,7 @@ def build_requirement_understanding_messages(
                 ],
                 "category_level_hint": "L1/L2/L3/unknown",
                 "analysis_intents": ["market_trend"],
-                "time_range": "使用源数据可覆盖范围，待确认",
+                "time_range": default_time_range_text(),
                 "output_expectation": "数据需求 workbook / PPT-ready workbook",
                 "metric_definitions": {},
                 "sub_l3_concept": {
@@ -127,6 +135,7 @@ def build_requirement_understanding_messages(
             "若 new_user_answers 包含澄清问答，必须把用户回答融入 understood、conversation_summary、assumptions、metric_definitions；不要新增 clarifying_questions。",
             "用户未明确指定站点时，target_sites 必须为 []（表示全部站点），不要默认填写 VN/SG 等。",
             "skipped=true 的条目优先采用 default_assumption；若无 default_assumption 则保留原假设。",
+            f"time_range 规则：{time_range_guidance_text()}",
         ],
     }
 

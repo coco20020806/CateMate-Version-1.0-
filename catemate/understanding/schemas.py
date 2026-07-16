@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from catemate.core.output_policy import default_time_range_text
 from catemate.scope.concept_schemas import RelatedConceptPack
 
 
@@ -37,7 +38,7 @@ class QuestionCategory(str, Enum):
 
 class AnalysisIntent(str, Enum):
     MARKET_TREND = "market_trend"
-    DAILY_PERFORMANCE = "daily_performance"
+    DAILY_PERFORMANCE = "daily_performance"  # deprecated: use market_trend unless user explicitly asks for daily
     PRICE_TIER = "price_tier"
     TOP_LISTING = "top_listing"
     TOP_SHOP = "top_shop"
@@ -91,7 +92,7 @@ class UnderstoodRequirement(BaseModel):
     inferred_category_candidates: list[InferredCategoryCandidate] = Field(default_factory=list)
     category_level_hint: str = "unknown"
     analysis_intents: list[AnalysisIntent] = Field(default_factory=list)
-    time_range: str = "使用源数据可覆盖范围，待确认"
+    time_range: str = Field(default_factory=default_time_range_text)
     output_expectation: str = "数据需求 workbook / PPT-ready workbook"
     metric_definitions: dict[str, str] = Field(default_factory=dict)
     sub_l3_concept: SubL3Concept = Field(default_factory=SubL3Concept)

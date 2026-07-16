@@ -13,6 +13,16 @@ def test_category_tree_has_pets_paths() -> None:
     assert any(item["category_path"] == "Pets > Pet Food > Dog Food" for item in candidates)
 
 
+def test_map_smart_pet_bowl_to_bowls_and_feeders() -> None:
+    result = resolve_category_mapping(
+        request_text="新加坡和越南市场的智能宠物碗的类目趋势与产品概括",
+        category_text="智能宠物碗",
+    )
+    assert result.is_relevant
+    assert result.mapped_level == "L3"
+    assert result.category_path == "Pets > Pet Accessories > Bowls & Feeders"
+
+
 def test_map_dog_food_to_l3() -> None:
     result = resolve_category_mapping(request_text="分析 VN 狗粮月度 GMV 趋势", category_text="狗粮")
     assert result.is_relevant

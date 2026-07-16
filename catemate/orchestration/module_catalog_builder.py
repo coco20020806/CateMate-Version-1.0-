@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from catemate.core.output_policy import enabled_module_ids
 from catemate.core.paths import CONFIG_DIR, PROCESSED_DATA_DIR
 from catemate.planning.context_loader import (
     DEFAULT_MANIFEST_PATH,
@@ -32,8 +33,12 @@ def build_module_catalog_for_blueprint(
     if include_manifest:
         manifest_table_ids = _load_manifest_table_ids(manifest_path)
 
+    allowed_ids = set(enabled_module_ids())
     catalog: list[dict[str, Any]] = []
     for contract in load_v2_data_module_contracts():
+        module_id = str(contract.get("module_id") or "").strip()
+        if allowed_ids and module_id not in allowed_ids:
+            continue
         entry = _summarize_contract(contract)
         if manifest_table_ids and entry.get("source_table_ids"):
             available = [tid for tid in entry["source_table_ids"] if tid in manifest_table_ids]

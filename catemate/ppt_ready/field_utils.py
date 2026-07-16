@@ -18,8 +18,11 @@ def is_daily_context(
     chart_id: str = "",
     chart_title: str = "",
     grain: str = "",
+    force_monthly: bool = False,
 ) -> bool:
     """Heuristically detect daily trend charts that should use grass_date."""
+    if force_monthly:
+        return False
     tables = {str(t).strip().lower() for t in (table_ids or []) if t}
     sheets = {str(s).strip().lower() for s in (source_sheets or []) if s}
     text = f"{chart_id} {chart_title} {grain}".lower()
@@ -40,6 +43,7 @@ def resolve_trend_time_fields(
     chart_title: str = "",
     grain: str = "",
     preferred_from_chart: list[str] | None = None,
+    force_monthly: bool = False,
 ) -> tuple[list[str], bool, str]:
     """Return ordered candidate time fields and whether this is daily context."""
     daily = is_daily_context(
@@ -48,6 +52,7 @@ def resolve_trend_time_fields(
         chart_id=chart_id,
         chart_title=chart_title,
         grain=grain,
+        force_monthly=force_monthly,
     )
     extras = [
         d

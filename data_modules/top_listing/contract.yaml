@@ -2,7 +2,7 @@ schema_version: data_module_v3
 module_id: top_listing
 module_name: Top Listing 商品样本
 module_type: listing
-status: active
+status: draft
 owner: CateMate
 last_updated: "2026-07-15"
 

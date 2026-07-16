@@ -1,0 +1,20 @@
+output_time_grain: month
+allow_date_input: true
+enabled_v2_modules:
+  - monthly_market_trend
+  - top_sku_info
+forbidden_module_ids:
+  - daily_cncb_performance
+forbidden_presentations:
+  - daily_table
+forbidden_output_grains:
+  - grass_date
+  - date
+allowed_output_grains:
+  - grass_month
+  - month
+  - grass_region
+time_range_interpretation: >
+  「最近」「近期」= 源数据最新可用完整月份及此前若干月；
+  禁止解释为日度/近30天按天趋势。
+default_time_range: 按源数据最新可用完整月份及此前若干月聚合；禁止日度窗口。

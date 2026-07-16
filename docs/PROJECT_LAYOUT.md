@@ -79,7 +79,8 @@ catemate/
 ```text
 config/
   rawdata_catalog.yaml          # V2：源表登记（grain / status）
-  analysis_playbook.md          # V2：报告蓝图章节顺序
+  analysis_playbook.md          # V2：报告蓝图（2 active 模块能力边界）
+  output_grain_policy.yaml      # V2：月度输出策略 + enabled_v2_modules 白名单
   processed_data_sources.yaml   # Raw Excel → processed CSV
   data_modules/                 # V1 扁平模块 YAML
   cases/                        # 本地 case（yaml 🔒）
@@ -106,6 +107,13 @@ data_modules/
 |------|------|------|
 | **V1 YAML** | `config/data_modules/*.yaml` | 扁平说明书，module_selection 使用 |
 | **V2 可执行** | `data_modules/<id>/` | `source_schema` + `compute.py` + pytest |
+| **Active（v1.1.0）** | `monthly_market_trend`、`top_sku_info` | 唯一进入 solve loop 的模块 |
+| **Draft** | 其余 5 个 module 目录 | 保留实现与单测，不参与编排 |
+
+注册与校验：
+
+- `catemate/orchestration/module_registry.py` — active 模块查询
+- `scripts/validate_v3_data_modules.py` — 校验 active 集合与 `output_grain_policy.yaml` 一致
 
 ---
 
@@ -157,6 +165,7 @@ outputs/
 | 脚本 | 用途 |
 |------|------|
 | `run_natural_language_requirement_pipeline.py` | 主入口（支持 v2_solve_loop / module_selection） |
+| `validate_v3_data_modules.py` | 校验 2 active + 5 draft 模块策略 |
 | `verify_v2_solve_loop.py` | V2 solve loop 离线验证 |
 | `run_scope_and_compute.py` | Scope + compute 独立运行 |
 | `ingest_rawdata_from_path.py` | 用户贴路径 → rawdata 入库 |
@@ -183,6 +192,7 @@ pytest tests/
 
 ## 相关文档
 
+- 版本记录：[CHANGELOG.md](../CHANGELOG.md)（v1.1.0）
 - V2 设计：[CATEMATE_V2_DESIGN_OVERVIEW.md](CATEMATE_V2_DESIGN_OVERVIEW.md)
 - V1 设计：[CATEMATE_V1_DESIGN_OVERVIEW.md](CATEMATE_V1_DESIGN_OVERVIEW.md)
 - Agent 导航：[AI_CORE_INDEX.md](AI_CORE_INDEX.md)

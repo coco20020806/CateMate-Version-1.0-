@@ -106,6 +106,7 @@ def render_category_confirmation_editor(
         placeholder="例如：应该是 Pet Accessories 下的 Bowls & Feeders，不是 Pet Food。",
         key=feedback_key,
     )
+    st.caption("提交反馈后会同时更新上方勾选项；单类目场景下将默认勾选首条候选。")
 
     col_feedback, col_confirm = st.columns(2)
     with col_feedback:
@@ -136,7 +137,7 @@ def render_category_confirmation_editor(
                 updated = finalize_after_category_confirmation(updated, ai_client=client)
                 save_understanding_spec(updated, understanding_spec_path)
                 update_and_save_manifest(
-                    manifest_path=manifest_path,
+                    manifest_path=Path(manifest_path),
                     case_id=manifest.case_id,
                     timestamp=manifest.timestamp,
                     request_text=manifest.request_text,
@@ -144,7 +145,7 @@ def render_category_confirmation_editor(
                     model=manifest.model,
                     planning_mode=manifest.planning_mode,
                     case_config_path=manifest.case_config_path,
-                    understanding_spec_path=str(understanding_spec_path),
+                    understanding_spec_path=understanding_spec_path,
                     status="category_confirmed",
                 )
                 if on_category_confirmed is not None:
