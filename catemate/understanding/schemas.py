@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from catemate.scope.concept_schemas import RelatedConceptPack
 
 
 class UnderstandingStatus(str, Enum):
@@ -24,6 +27,12 @@ class QuestionType(str, Enum):
     MULTI_CHOICE = "multi_choice"
     FREE_TEXT = "free_text"
     YES_NO = "yes_no"
+    FILE_PATH = "file_path"
+
+
+class QuestionCategory(str, Enum):
+    CLARIFY_BUSINESS = "clarify_business"
+    RAWDATA = "rawdata"
 
 
 class AnalysisIntent(str, Enum):
@@ -48,6 +57,30 @@ class InferredCategoryCandidate(BaseModel):
     confidence: ConfidenceLevel = ConfidenceLevel.MEDIUM
 
 
+class SubL3Concept(BaseModel):
+    is_sub_l3: bool = False
+    concept_id: str = ""
+    display_name: str = ""
+    parent_l3: str = ""
+
+
+PositioningType = Literal["single_category", "multi_category", "unresolved"]
+
+
+class CategoryFeedbackRound(BaseModel):
+    user_feedback: str
+    system_summary: str = ""
+    answered_at: str = ""
+
+
+class CategoryPositioning(BaseModel):
+    positioning_type: PositioningType = "unresolved"
+    proposed_candidates: list[InferredCategoryCandidate] = Field(default_factory=list)
+    confirmed_candidates: list[InferredCategoryCandidate] = Field(default_factory=list)
+    confirmed: bool = False
+    feedback_rounds: list[CategoryFeedbackRound] = Field(default_factory=list)
+
+
 class UnderstoodRequirement(BaseModel):
     business_background: str = ""
     delivery_audience: str = "待确认"
@@ -61,6 +94,9 @@ class UnderstoodRequirement(BaseModel):
     time_range: str = "使用源数据可覆盖范围，待确认"
     output_expectation: str = "数据需求 workbook / PPT-ready workbook"
     metric_definitions: dict[str, str] = Field(default_factory=dict)
+    sub_l3_concept: SubL3Concept = Field(default_factory=SubL3Concept)
+    related_concept_pack: RelatedConceptPack | None = None
+    category_positioning: CategoryPositioning = Field(default_factory=CategoryPositioning)
 
 
 class RequirementAssumption(BaseModel):
@@ -82,9 +118,12 @@ class ClarifyingQuestion(BaseModel):
     question: str
     reason: str = ""
     expected_answer_type: QuestionType = QuestionType.FREE_TEXT
+    question_category: QuestionCategory = QuestionCategory.CLARIFY_BUSINESS
     options: list[str] = Field(default_factory=list)
     blocks_module_selection: bool = False
     default_assumption: str = ""
+    rawdata_grain: str = ""
+    rawdata_table_id: str = ""
 
 
 class UserAnswer(BaseModel):

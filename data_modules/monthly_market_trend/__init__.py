@@ -1,6 +1,8 @@
 """monthly_market_trend data module package."""
 
-from .compute import ComputeParams, ScopedFrame, compute
+from catemate.scope.schemas import ScopedFrame
+
+from .compute import ComputeParams, compute
 from .transforms import transform
 
 __all__ = ["ComputeParams", "ScopedFrame", "compute", "transform"]

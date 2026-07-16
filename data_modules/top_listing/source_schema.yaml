@@ -1,0 +1,22 @@
+schema_version: source_schema_v1
+module_id: top_listing
+
+source_columns:
+  required:
+    - column: item_name
+      dtype: string
+    - column: current_adgmv(RAW)
+      dtype: float
+    - column: current_ado(RAW)
+      dtype: float
+
+compute_rules:
+  group_by: [item_name]
+  aggregate:
+    - column: current_adgmv(RAW)
+      function: sum
+    - column: current_ado(RAW)
+      function: sum
+  top_n: 20
+  sort_by: current_adgmv(RAW)
+  sort_order: desc

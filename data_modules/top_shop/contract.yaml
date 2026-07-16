@@ -1,0 +1,26 @@
+schema_version: data_module_v3
+module_id: top_shop
+module_name: Top Shop 排名
+module_type: ranking
+status: active
+owner: CateMate
+last_updated: "2026-07-15"
+
+source_schema_ref: source_schema.yaml
+
+source_bindings:
+  allowed_grains: [shop]
+  by_grain:
+    shop:
+      default_table_id: dashboard_top_shop
+      candidates: [dashboard_top_shop, shop_monthly_sales]
+      loader: flat_workbook
+
+replaces:
+  - dashboard_top_shop
+
+outputs:
+  primary:
+    - table_id: top_shop_ranking
+      grain: [shop_id, grass_region]
+      top_n: 20

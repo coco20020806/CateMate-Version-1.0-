@@ -2,7 +2,7 @@ schema_version: data_module_v2
 module_id: dashboard_daily_cncb_performance
 module_name: Shopee/CNCB 表现
 module_type: daily_performance
-status: active
+status: deprecated
 owner: CateMate
 last_updated: "2026-07-09"
 

@@ -2,7 +2,7 @@ schema_version: data_module_v2
 module_id: rm_monthly_category_performance
 module_name: RM 月度类目表现
 module_type: market_trend
-status: active
+status: deprecated
 owner: CateMate
 last_updated: "2026-07-09"
 

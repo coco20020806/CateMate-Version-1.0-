@@ -1,0 +1,109 @@
+schema_version: source_schema_v1
+module_id: top_sku_info
+
+# ---------------------------------------------------------------------------
+# 源底表列名（item 文件夹 CSV 表头）
+# ---------------------------------------------------------------------------
+
+source_columns:
+  required:
+    - column: grass_region
+      meaning: 站点/区域
+      dtype: string
+    - column: item_name
+      meaning: 商品名称（SKU 标识）
+      dtype: string
+    - column: item_link
+      meaning: 商品链接
+      dtype: string
+
+  required_one_of:
+    description: 时间列至少有一列；仅有 grass_date 时 compute 归一到 grass_month
+    columns:
+      - column: grass_month
+        meaning: 月份
+        dtype: string
+      - column: grass_date
+        meaning: 日期（将归一为 grass_month）
+        dtype: string
+
+  required_at_least_one:
+    description: 排序指标至少有一列；sort_by=both 时仅一列则自动降级
+    columns:
+      - column: orders
+        meaning: 订单量
+        dtype: float
+      - column: gmv_usd
+        meaning: GMV 美元
+        dtype: float
+
+  soft_expected:
+    description: 缺失不阻塞，在输出 metadata 标记
+    columns:
+      - column: item_price_usd
+        meaning: 商品价格（美元）
+        dtype: float
+      - column: price_range
+        meaning: 价格带
+        dtype: string
+      - column: cb_level1_global_be_category
+        meaning: 一级类目
+        dtype: string
+      - column: level2_global_be_category
+        meaning: 二级类目
+        dtype: string
+      - column: level3_global_be_category
+        meaning: 三级类目
+        dtype: string
+      - column: shop_id
+        meaning: 店铺 ID
+        dtype: string
+      - column: item_image
+        meaning: 商品图片 URL
+        dtype: string
+
+# ---------------------------------------------------------------------------
+# 主表：站点 × 月 × SKU Top N 榜单
+# ---------------------------------------------------------------------------
+
+compute_rules:
+  description: 每个 grass_region × grass_month 切片内按指标排序取 Top N
+  pattern: top_n_ranking
+
+  time_normalization:
+    prefer_column: grass_month
+    fallback_column: grass_date
+    fallback_rule: parse grass_date → calendar month (YYYY-MM-01)
+
+  slice_by: [grass_region, grass_month]
+  group_by: [grass_region, grass_month, item_name]
+
+  sort_metrics:
+    orders:
+      source_column: orders
+      direction: desc
+      table_id_template: top_sku_by_orders_top{n}
+    gmv:
+      source_column: gmv_usd
+      direction: desc
+      table_id_template: top_sku_by_gmv_top{n}
+
+  default_top_n: [5, 10, 20]
+  default_sort_by: both
+  rank_method: competition
+
+  aggregate:
+    sum: [orders, gmv_usd]
+    first: [item_link, item_price_usd, price_range, shop_id, item_image,
+            cb_level1_global_be_category, level2_global_be_category,
+            level3_global_be_category]
+
+  output_metadata:
+    - sort_by_requested
+    - sort_by_effective
+    - sort_by_degraded
+    - top_n_values
+    - missing_soft_expected
+
+transform_rules:
+  derived: []

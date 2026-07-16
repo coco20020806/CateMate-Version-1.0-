@@ -1,0 +1,35 @@
+schema_version: data_module_v3
+module_id: daily_cncb_performance
+module_name: Shopee/CNCB 表现
+module_type: daily_performance
+status: active
+owner: CateMate
+last_updated: "2026-07-15"
+
+source_schema_ref: source_schema.yaml
+
+source_bindings:
+  allowed_grains: [category]
+  by_grain:
+    category:
+      default_table_id: dashboard_daily_data
+      candidates: [dashboard_daily_data]
+      loader: flat_workbook
+
+replaces:
+  - dashboard_daily_cncb_performance
+
+compute_params:
+  metric_id:
+    type: enum
+    allowed: [gmv, orders]
+    required: true
+
+outputs:
+  primary:
+    - table_id: gmv_by_site_month
+      metric_id: gmv
+      grain: [grass_region, month]
+    - table_id: orders_by_site_month
+      metric_id: orders
+      grain: [grass_region, month]

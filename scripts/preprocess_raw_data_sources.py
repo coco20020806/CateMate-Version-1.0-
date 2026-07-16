@@ -53,7 +53,9 @@ def _extract_table(
     processed_root: Path,
     default_update_mode: str,
 ) -> dict[str, Any]:
-    workbook_path = _find_workbook(raw_data_dir, table.get("source_workbook_keywords", []))
+    grain = table.get("grain")
+    search_dirs = _rawdata_search_dirs(raw_data_dir, grain)
+    workbook_path = _find_workbook(search_dirs, table.get("source_workbook_keywords", []))
     source_sheet = table["source_sheet"]
     output_csv = processed_root / table["output_csv"]
     output_csv.parent.mkdir(parents=True, exist_ok=True)
@@ -85,6 +87,7 @@ def _extract_table(
     source_stat = workbook_path.stat()
     return {
         "table_id": table["table_id"],
+        "grain": grain or "",
         "description": table.get("description", ""),
         "source_workbook": str(workbook_path),
         "source_workbook_name": workbook_path.name,
@@ -200,14 +203,29 @@ def _row_key(row: list[str], indexes: list[int]) -> tuple[str, ...]:
     return tuple(row[index] if index < len(row) else "" for index in indexes)
 
 
-def _find_workbook(raw_data_dir: Path, keywords: list[str]) -> Path:
-    candidates = sorted(raw_data_dir.glob("*.xlsx"))
+def _rawdata_search_dirs(raw_data_dir: Path, grain: str | None) -> list[Path]:
+    if grain:
+        grain_dir = raw_data_dir / grain
+        if grain_dir.is_dir():
+            return [grain_dir]
+    if raw_data_dir.is_dir():
+        subdirs = [p for p in raw_data_dir.iterdir() if p.is_dir()]
+        if subdirs:
+            return sorted(subdirs)
+    return [raw_data_dir]
+
+
+def _find_workbook(search_dirs: list[Path], keywords: list[str]) -> Path:
     normalized_keywords = [str(keyword).lower() for keyword in keywords if str(keyword)]
-    for path in candidates:
-        source_name = path.name.lower()
-        if all(keyword.lower() in source_name for keyword in normalized_keywords):
-            return path
-    raise FileNotFoundError(f"No workbook in {raw_data_dir} matched keywords: {keywords}")
+    for search_dir in search_dirs:
+        candidates = sorted(search_dir.glob("*.xlsx"))
+        for path in candidates:
+            source_name = path.name.lower()
+            if all(keyword.lower() in source_name for keyword in normalized_keywords):
+                return path
+    raise FileNotFoundError(
+        f"No workbook in {search_dirs} matched keywords: {keywords}"
+    )
 
 
 def _find_sheet_name(sheet_names: list[str], expected_name: str) -> str:

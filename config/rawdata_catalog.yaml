@@ -1,0 +1,113 @@
+version: 1
+rawdata_root: CateMate_rawdata
+tables:
+  - table_id: rm_raw_data
+    grain: category
+    description: RM 月度类目 GMV / Orders raw data
+    expected_columns:
+      - grass_region
+      - cb_level1_global_be_category
+      - level2_global_be_category
+      - level3_global_be_category
+      - grass_month
+      - gmv_usd
+      - orders
+    processed_table_id: rm_raw_data
+    status: available
+
+  - table_id: dashboard_history
+    grain: category
+    description: DECK Part 1 市场整体趋势历史数据
+    expected_columns:
+      - grass_region
+      - cb_level1_global_be_category
+      - level2_global_be_category
+      - level3_global_be_category
+      - grass_month
+      - gmv_usd
+      - orders
+    processed_table_id: dashboard_history
+    status: available
+
+  - table_id: dashboard_daily_data
+    grain: category
+    description: DECK Part 2 日度 Shopee / CNCB 数据
+    expected_columns:
+      - grass_date
+      - grass_region
+      - shopee_order(SUM)
+      - shopee_gmv_usd(SUM)
+    processed_table_id: dashboard_daily_data
+    status: available
+
+  - table_id: dashboard_price_tier
+    grain: category
+    description: DECK Part 3/4 价格段数据
+    expected_columns:
+      - year_month
+      - grass_region
+      - Price_Range_USD
+      - ADO
+      - ADG
+    processed_table_id: dashboard_price_tier
+    status: available
+
+  - table_id: dashboard_top_shop
+    grain: shop
+    description: DECK Part 5 Top Shop 数据
+    expected_columns:
+      - grass_region
+      - shop_id
+      - mtd_adgmv_usd(SUM)
+      - mtd_ado(SUM)
+    processed_table_id: dashboard_top_shop
+    status: missing
+
+  - table_id: dashboard_keywords
+    grain: category
+    description: DECK Part 6 关键词数据
+    expected_columns:
+      - grass_region
+      - keyword
+      - keyword_rank(SUM)
+    processed_table_id: dashboard_keywords
+    status: available
+
+  - table_id: dashboard_top_listing
+    grain: item
+    description: DECK Part 7 Top Listing 商品数据
+    expected_columns:
+      - grass_region
+      - item_name
+      - current_adgmv(RAW)
+    processed_table_id: dashboard_top_listing
+    status: missing
+
+  - table_id: shop_monthly_sales
+    grain: shop
+    description: 店铺维度月度销售（用户补充）
+    expected_columns:
+      - grass_region
+      - shop_id
+      - grass_month
+      - gmv_usd
+      - orders
+    processed_table_id: shop_monthly_sales
+    status: missing
+
+  - table_id: item_l3_category_csv
+    grain: item
+    description: L3 类目文件夹下的商品明细 CSV（按类目树路径组织）
+    resolution_mode: category_folder
+    expected_columns:
+      - grass_month
+      - grass_region
+      - cb_level1_global_be_category
+      - level2_global_be_category
+      - level3_global_be_category
+      - orders
+      - gmv_usd
+      - item_name
+      - shop_id
+    processed_table_id: item_l3_category_csv
+    status: available

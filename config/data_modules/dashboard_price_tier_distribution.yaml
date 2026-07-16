@@ -2,7 +2,7 @@ schema_version: data_module_v2
 module_id: dashboard_price_tier_distribution
 module_name: 价格段分布与对比
 module_type: price_tier
-status: active
+status: deprecated
 owner: CateMate
 last_updated: "2026-07-09"
 

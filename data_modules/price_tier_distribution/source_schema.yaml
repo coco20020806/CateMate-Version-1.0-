@@ -1,0 +1,21 @@
+schema_version: source_schema_v1
+module_id: price_tier_distribution
+
+source_columns:
+  required:
+    - column: Price_Range_USD
+      dtype: string
+    - column: grass_region
+      dtype: string
+    - column: ADO
+      dtype: float
+    - column: ADG
+      dtype: float
+
+compute_rules:
+  group_by: [Price_Range_USD, grass_region]
+  aggregate:
+    - column: ADO
+      function: sum
+    - column: ADG
+      function: sum

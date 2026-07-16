@@ -286,13 +286,13 @@ flowchart LR
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
-| **0** | `monthly_market_trend` 目录模块 + 单测 | ✅ 已起步 |
-| **1** | `rawdata/{category,shop,item}` + `rawdata_catalog` | 🔲 规划 |
-| **2** | Scope 执行器接口 + category 试点 | 🔲 规划 |
-| **3** | 意图编排 + 澄清流 `rawdata_*` 题 + 路径 ingest | 🔲 规划 |
-| **4** | Data Workbook 组装（Plan / Data / Gaps） | 🔲 规划 |
-| **5** | 逐步用 V2 模块替换 V1 YAML 模块 | 🔲 规划 |
-| **6** | PPT-ready 改为读 Workbook 表族（可选） | 🔲 规划 |
+| **0** | 可执行 data modules + 单测 | ✅ 7 个模块已落地 |
+| **1** | `rawdata_catalog` + 三维度源表登记 | ✅ 已落地 |
+| **2** | Scope 执行器 + related / concept pack | ✅ 已落地 |
+| **3** | Solve Loop + `rawdata_*` 澄清 + 路径 ingest | ✅ 已落地 |
+| **4** | Data Workbook 组装（Plan / Data / Gaps） | ✅ 已落地 |
+| **5** | 逐步用 V2 模块替换 V1 YAML 模块 | 🔄 进行中 |
+| **6** | PPT-ready / HTML 从 Data Workbook 消费 | 🔄 部分可用 |
 
 ---
 

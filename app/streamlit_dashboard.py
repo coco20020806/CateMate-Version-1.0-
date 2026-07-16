@@ -12,6 +12,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import streamlit as st
 
+from app.category_confirmation_editor import render_category_confirmation_editor
 from app.clarification_editor import (
     load_understanding_spec,
     mark_clarification_completed,
@@ -28,11 +29,13 @@ from catemate.pipeline.manifest import (
     update_and_save_manifest,
 )
 from app.pipeline_runtime import (
+    run_pipeline_continue_after_category_confirmation_subprocess,
     run_pipeline_continue_from_manifest_subprocess,
     run_pipeline_from_request_text_subprocess,
     run_ppt_ready_subprocess,
 )
 from catemate.pipeline.runner import PipelineRunResult
+from catemate.understanding.category_confirmation import is_category_confirmation_complete
 from catemate.understanding.clarification import is_clarification_complete
 from catemate.understanding.clarification_merge import needs_clarification_merge
 from catemate.understanding.schemas import RequirementUnderstandingSpec
@@ -43,11 +46,21 @@ DASHBOARD_MODE_KEY = "dashboard_mode"
 PENDING_DASHBOARD_MODE_KEY = "_pending_dashboard_mode"
 LAST_PIPELINE_MESSAGE_KEY = "last_pipeline_message"
 
+
+def manifest_path_attr(manifest: PipelineManifest, name: str) -> str | None:
+    """Read optional manifest path; safe when Streamlit cached an older PipelineManifest class."""
+    return getattr(manifest, name, None)
+
+
 STATUS_ACTION_HINTS: dict[str, str] = {
+    "awaiting_category_confirmation": "待确认类目",
+    "category_confirmed": "类目已确认",
     "awaiting_clarification": "待澄清",
+    "awaiting_rawdata_clarification": "待补数据",
     "clarification_completed": "可继续",
     "understanding_generated": "可继续",
     "workbook_generated": "待确认",
+    "data_workbook_generated": "V2 数据已就绪",
     "planning_generated": "待确认",
     "module_selection_generated": "可继续",
     "ppt_ready_generated": "已完成",
@@ -147,7 +160,12 @@ def prepare_post_pipeline_navigation(
         st.session_state["manifest_pick_label"] = label
 
     if result.exit_code == 0:
-        if result.manifest and result.manifest.status == "awaiting_clarification":
+        if result.manifest and result.manifest.status == "awaiting_category_confirmation":
+            message = (
+                "warning",
+                "Pipeline 已暂停：请先在「类目定位确认」中勾选类目并点击【确认类目】。",
+            )
+        elif result.manifest and result.manifest.status == "awaiting_clarification":
             message = (
                 "warning",
                 "Pipeline 已暂停：请在下方「需求澄清」中逐题回答或跳过后再继续。",
@@ -266,6 +284,8 @@ def render_status_badge(status: str) -> None:
         st.error(status)
     elif status == "awaiting_clarification":
         st.warning(status)
+    elif status == "awaiting_category_confirmation":
+        st.warning(status)
     elif status.endswith("_generated"):
         st.info(status)
     else:
@@ -273,6 +293,20 @@ def render_status_badge(status: str) -> None:
 
 
 def clarification_gate_passed(manifest: PipelineManifest) -> bool:
+    if manifest.planning_mode == "v2_solve_loop":
+        if manifest.status == "data_workbook_generated":
+            return True
+        spec_path = resolve_manifest_path(CATEMATE_ROOT, manifest.understanding_spec_path)
+        if spec_path is None or not spec_path.exists():
+            return manifest.status not in {"awaiting_clarification", "awaiting_rawdata_clarification"}
+        try:
+            spec = load_understanding_spec(spec_path)
+        except Exception:
+            return False
+        if not is_clarification_complete(spec):
+            return False
+        # 澄清题已在 UI 处理完（含跳过 rawdata）后，不再阻塞后续区块展示
+        return True
     if manifest.planning_mode != "module_selection":
         return True
     if not manifest.understanding_spec_path:
@@ -307,6 +341,11 @@ def render_manifest_summary(manifest: PipelineManifest, manifest_path: Path | No
         ("Case config", display_path(manifest.case_config_path)),
         ("需求理解 spec", display_path(manifest.understanding_spec_path)),
         ("Module selection plan", display_path(manifest.module_selection_plan_path)),
+        ("Report blueprint", display_path(manifest_path_attr(manifest, "report_blueprint_path"))),
+        ("Analysis plan", display_path(manifest_path_attr(manifest, "analysis_plan_path"))),
+        ("Solve loop state", display_path(manifest_path_attr(manifest, "solve_loop_state_path"))),
+        ("Solve verdict", display_path(manifest_path_attr(manifest, "solve_verdict_path"))),
+        ("Data workbook (V2)", display_path(manifest_path_attr(manifest, "data_workbook_path"))),
         ("Planning spec", display_path(manifest.planning_spec_path)),
         ("数据需求 workbook", display_path(manifest.requirement_workbook_path)),
         ("PPT-ready workbook", display_path(manifest.ppt_ready_workbook_path)),
@@ -314,6 +353,38 @@ def render_manifest_summary(manifest: PipelineManifest, manifest_path: Path | No
     ]
     for label, path_text in rows:
         st.markdown(f"- **{label}**：`{path_text}`")
+
+
+def render_category_confirmation_section(manifest: PipelineManifest, manifest_path: Path) -> bool:
+    """Render category gate. Returns True when category confirmation is complete."""
+    st.subheader("2. 类目定位确认")
+    if manifest.planning_mode not in {"module_selection", "v2_solve_loop"}:
+        st.info("当前 planning_mode 无需类目确认 gate。")
+        return True
+
+    spec_path = resolve_manifest_path(CATEMATE_ROOT, manifest.understanding_spec_path)
+    if spec_path is None or not spec_path.exists():
+        st.info("尚无 understanding spec。")
+        return False
+
+    def _on_confirmed(_spec: RequirementUnderstandingSpec) -> None:
+        with st.spinner("类目已确认，正在继续 pipeline…"):
+            result = run_pipeline_continue_after_category_confirmation_subprocess(manifest_path)
+            if result.exit_code == 0:
+                st.session_state[LAST_PIPELINE_MESSAGE_KEY] = ("success", "类目确认完成，pipeline 已继续。")
+            else:
+                st.session_state[LAST_PIPELINE_MESSAGE_KEY] = (
+                    "error",
+                    result.error_message or "继续 pipeline 失败。",
+                )
+
+    _, complete = render_category_confirmation_editor(
+        spec_path,
+        manifest,
+        manifest_path,
+        on_category_confirmed=_on_confirmed,
+    )
+    return complete
 
 
 def render_understanding_section(manifest: PipelineManifest) -> None:
@@ -412,7 +483,9 @@ def _answers_newer_than_artifacts(manifest: PipelineManifest, spec: RequirementU
 def render_clarification_section(manifest: PipelineManifest, manifest_path: Path) -> bool:
     """Render clarification UI. Returns True when gate passed."""
     st.subheader("4. 需求澄清")
-    if manifest.planning_mode != "module_selection":
+    if manifest.planning_mode == "v2_solve_loop":
+        pass
+    elif manifest.planning_mode != "module_selection":
         st.info("ai_direct 模式无理解澄清 gate。")
         return True
 
@@ -434,7 +507,7 @@ def render_clarification_section(manifest: PipelineManifest, manifest_path: Path
         return True
 
     complete = is_clarification_complete(spec)
-    if not complete or manifest.status == "awaiting_clarification":
+    if not complete or manifest.status in {"awaiting_clarification", "awaiting_rawdata_clarification"}:
         _, complete = render_clarification_editor(
             spec_path,
             manifest,
@@ -443,7 +516,7 @@ def render_clarification_section(manifest: PipelineManifest, manifest_path: Path
         )
 
     if complete:
-        if manifest.status == "awaiting_clarification":
+        if manifest.status in {"awaiting_clarification", "awaiting_rawdata_clarification"}:
             mark_clarification_completed(manifest, manifest_path)
             manifest = load_pipeline_manifest(manifest_path)
 
@@ -455,16 +528,31 @@ def render_clarification_section(manifest: PipelineManifest, manifest_path: Path
                 "请点击下方按钮重新生成（将调用 LLM 合并澄清答案并刷新后续步骤）。"
             )
 
-        show_continue = manifest.status != "ppt_ready_generated" and (
-            not manifest.module_selection_plan_path
-            or downstream_stale
-            or manifest.status in {"clarification_completed", "understanding_generated"}
-        )
+        if manifest.planning_mode == "v2_solve_loop":
+            show_continue = (
+                manifest.status != "data_workbook_generated"
+                and is_clarification_complete(spec)
+                and (
+                    manifest.status == "awaiting_rawdata_clarification"
+                    or downstream_stale
+                    or manifest.status in {"clarification_completed", "understanding_generated"}
+                )
+            )
+        else:
+            show_continue = manifest.status != "ppt_ready_generated" and (
+                not manifest.module_selection_plan_path
+                or downstream_stale
+                or manifest.status in {"clarification_completed", "understanding_generated"}
+            )
 
         if show_continue:
             label = (
-                "重新生成 Module Selection / Workbook（合并澄清答案）"
+                "重新生成 SolveLoop / Data Workbook（合并澄清答案）"
+                if downstream_stale and manifest.planning_mode == "v2_solve_loop"
+                else "重新生成 Module Selection / Workbook（合并澄清答案）"
                 if downstream_stale
+                else "继续生成 SolveLoop / Data Workbook"
+                if manifest.planning_mode == "v2_solve_loop"
                 else "继续生成 Module Selection / Workbook"
             )
             if st.button(label, type="primary", key="continue_after_clarification"):
@@ -496,6 +584,73 @@ def render_module_card(module: dict, *, badge: str) -> None:
                 f"{c.get('chart_intent')} ({c.get('chart_type')})" for c in charts if isinstance(c, dict)
             ]
             st.markdown(f"图表意图：{', '.join(chart_lines)}")
+
+
+def render_solve_loop_section(manifest: PipelineManifest, manifest_path: Path) -> None:
+    st.subheader("5. V2 求解循环")
+    if manifest.planning_mode != "v2_solve_loop":
+        st.info("非 v2_solve_loop 模式，跳过求解循环展示。")
+        return
+
+    blueprint = load_json_path(manifest_path_attr(manifest, "report_blueprint_path"))
+    plan = load_json_path(manifest_path_attr(manifest, "analysis_plan_path"))
+    verdict = load_json_path(manifest_path_attr(manifest, "solve_verdict_path"))
+    loop_state = load_json_path(manifest_path_attr(manifest, "solve_loop_state_path"))
+
+    if blueprint:
+        st.markdown(f"**报告目标**：{blueprint.get('goal', '—')}")
+        for section in blueprint.get("sections") or []:
+            st.markdown(
+                f"- `{section.get('section_id')}` {section.get('title')} — {section.get('sub_question')}"
+            )
+
+    if plan:
+        st.markdown("**AnalysisPlan runs**")
+        for run in plan.get("runs") or []:
+            st.markdown(
+                f"- `{run.get('run_id')}` {run.get('module_id')} / {run.get('metric_id')} "
+                f"({run.get('status')}) — {run.get('scope_label', '')}"
+            )
+
+    if loop_state:
+        st.caption(
+            f"阶段：{loop_state.get('phase')} · 迭代：{loop_state.get('loop_iteration')} "
+            f"· 数据题：{len(loop_state.get('rawdata_questions') or [])}"
+        )
+
+    if verdict:
+        st.success(
+            f"Verify：{verdict.get('verdict')} · exit={verdict.get('exit_reason') or '—'}"
+        )
+
+    data_workbook_path = manifest_path_attr(manifest, "data_workbook_path")
+    if data_workbook_path:
+        st.markdown(f"**Data Workbook**：`{display_path(data_workbook_path)}`")
+
+    if manifest.status == "awaiting_rawdata_clarification" and loop_state:
+        st.warning("存在缺源数据，请在澄清区补充文件路径或选择跳过。")
+        if st.button("以 partial 继续（不再补数）", key="v2_decline_data"):
+            from catemate.pipeline.v2_runner import continue_v2_solve_loop
+            from app.clarification_editor import load_understanding_spec
+
+            spec_path = resolve_manifest_path(CATEMATE_ROOT, manifest.understanding_spec_path)
+            if spec_path and spec_path.exists():
+                spec = load_understanding_spec(spec_path)
+                result = continue_v2_solve_loop(
+                    manifest_path=manifest_path,
+                    manifest=manifest,
+                    understanding_spec=spec,
+                    understanding_spec_path=spec_path,
+                    output_dir=manifest_path.parent,
+                    safe_case_id=manifest.case_id,
+                    stamp=manifest.timestamp,
+                    processed_data_dir=PROCESSED_DATA_DIR,
+                    user_declined_data=True,
+                )
+                if result.exit_code == 0:
+                    st.rerun()
+                else:
+                    st.error(result.error_message or "续跑失败")
 
 
 def render_module_selection_section(manifest: PipelineManifest) -> None:
@@ -645,9 +800,9 @@ def render_new_requirement_section(manifest_catalog: list[dict[str, object]]) ->
     )
     planning_mode = st.selectbox(
         "Planning 模式",
-        options=["module_selection", "ai_direct"],
+        options=["v2_solve_loop", "module_selection", "ai_direct"],
         index=0,
-        help="默认推荐 module_selection（理解 → 选模块 → 确定性规划）。ai_direct 为旧链路对照。",
+        help="默认推荐 v2_solve_loop（求解循环 → Data Workbook）。module_selection 为 V1 链路。",
     )
 
     if st.button("生成数据需求 workbook", type="primary", disabled=not request_text.strip()):
@@ -762,16 +917,30 @@ def render_history_manifest_picker(catalog: list[dict[str, object]]) -> Path | N
     return selected_manifest_path
 
 
+def render_data_workbook_consume_section(manifest: PipelineManifest) -> None:
+    st.subheader("6. Data Workbook 消费（HTML 预览）")
+    data_workbook_path = manifest_path_attr(manifest, "data_workbook_path")
+    if not data_workbook_path:
+        st.info("尚无 Data Workbook。")
+        return
+    wb_path = resolve_manifest_path(CATEMATE_ROOT, data_workbook_path)
+    if wb_path is None or not wb_path.exists():
+        st.warning("Data Workbook 文件不存在。")
+        return
+    if st.button("从 Data Workbook 生成 HTML 预览", key="build_html_from_data_wb"):
+        from catemate.ppt_ready.build_from_data_workbook import build_html_from_data_workbook
+
+        out = build_html_from_data_workbook(wb_path)
+        st.success(f"HTML 预览已生成：`{out}`")
+
+
 def render_workflow_sections(manifest: PipelineManifest, selected_manifest_path: Path) -> None:
     render_manifest_summary(manifest, selected_manifest_path)
 
     st.divider()
-    render_understanding_section(manifest)
-
-    st.divider()
-    clarify_ok = render_clarification_section(manifest, selected_manifest_path)
-    if not clarify_ok:
-        st.info("请先完成需求澄清，再进行 Module Selection 与后续步骤。")
+    category_ok = render_category_confirmation_section(manifest, selected_manifest_path)
+    if not category_ok:
+        st.info("请先完成类目定位确认（勾选类目并点击【确认类目】），再进行后续步骤。")
         return
 
     try:
@@ -780,6 +949,27 @@ def render_workflow_sections(manifest: PipelineManifest, selected_manifest_path:
         pass
 
     st.divider()
+    render_understanding_section(manifest)
+
+    st.divider()
+    clarify_ok = render_clarification_section(manifest, selected_manifest_path)
+    if not clarify_ok:
+        st.info("请先完成需求澄清，再进行后续步骤。")
+        return
+
+    try:
+        manifest = load_pipeline_manifest(selected_manifest_path)
+    except Exception:
+        pass
+
+    st.divider()
+    if manifest.planning_mode == "v2_solve_loop":
+        render_solve_loop_section(manifest, selected_manifest_path)
+        st.divider()
+        if manifest_path_attr(manifest, "data_workbook_path"):
+            render_data_workbook_consume_section(manifest)
+        return
+
     render_module_selection_section(manifest)
 
     st.divider()

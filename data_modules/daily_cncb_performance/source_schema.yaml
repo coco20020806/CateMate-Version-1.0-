@@ -1,0 +1,27 @@
+schema_version: source_schema_v1
+module_id: daily_cncb_performance
+
+source_columns:
+  required:
+    - column: grass_region
+      dtype: string
+  required_one_of:
+    columns:
+      - column: month
+        dtype: string
+      - column: grass_month
+        dtype: string
+      - column: grass_date
+        dtype: string
+
+compute_rules:
+  group_by: [grass_region, month]
+  metrics:
+    gmv:
+      table_id: gmv_by_site_month
+      source_columns: [shopee_gmv_usd(SUM), cncb_gmv_usd(SUM)]
+      aggregate: sum
+    orders:
+      table_id: orders_by_site_month
+      source_columns: [shopee_order(SUM), cncb_order(SUM)]
+      aggregate: sum

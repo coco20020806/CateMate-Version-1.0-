@@ -9,6 +9,7 @@ from catemate.ai.client import CateMateAIClient
 from catemate.understanding.generator import _validate_spec
 from catemate.understanding.prompt_builder import build_requirement_understanding_messages
 from catemate.understanding.readiness import normalize_understanding_readiness
+from catemate.understanding.site_normalizer import normalize_target_sites
 from catemate.understanding.schemas import RequirementUnderstandingSpec, UserAnswer
 
 
@@ -45,6 +46,7 @@ class RequirementUnderstandingUpdater:
         payload = self.ai_client.complete_json(messages)
         spec = _validate_spec(payload, original_request=existing_spec.original_request)
         spec = _merge_user_answers(existing_spec, spec, pending_answer)
+        spec = normalize_target_sites(spec)
         return normalize_understanding_readiness(spec)
 
 

@@ -26,6 +26,7 @@ SYSTEM_PROMPT = """你是 CateMate 的需求结构化 agent。
 - 如果用户明确说“最后定位在 pet healthcare”，放入 target_category_text。
 - 如果无法确定 L1/L2/L3，不要编造完整类目路径，可写用户原文或待确认。
 - 如果用户明确说“越南”，target_sites 应包含 VN。
+- 如果用户未明确指定站点/国家/市场，target_sites 必须为 []，表示全部站点；禁止默认猜测 VN 或其他单一站点。
 - delivery_format 默认 Excel。
 - delivery_audience 默认 待确认。
 - time_range 默认 使用源数据可覆盖范围，待确认。
@@ -40,7 +41,7 @@ CASE_CONFIG_FIELD_HINTS = {
     "business_background": "业务背景/目的，不确定写待确认。",
     "delivery_audience": "交付对象，默认待确认。",
     "delivery_format": "默认 Excel。",
-    "target_sites": "站点列表，例如 [\"VN\"]。",
+    "target_sites": "站点列表，例如 [\"VN\"]；用户未指定站点时用 [] 表示全部站点。",
     "time_range": "默认 使用源数据可覆盖范围，待确认。",
     "category_keywords": "需求中的关键词列表。",
     "analysis_plan": "用户明确提到的分析点，可转成简化分析行。",

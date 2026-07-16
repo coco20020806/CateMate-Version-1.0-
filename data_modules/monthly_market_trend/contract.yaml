@@ -8,6 +8,23 @@ last_updated: "2026-07-15"
 
 source_schema_ref: source_schema.yaml
 
+source_bindings:
+  allowed_grains: [category, shop, item]
+  by_grain:
+    category:
+      default_table_id: dashboard_history
+      candidates: [dashboard_history, rm_raw_data]
+      loader: flat_workbook
+    shop:
+      default_table_id: shop_monthly_sales
+      candidates: [shop_monthly_sales]
+      loader: flat_workbook
+    item:
+      default_table_id: item_l3_category_csv
+      candidates: [item_l3_category_csv]
+      loader: category_folder
+      requires_scope: [category_l1, category_l2, category_l3]
+
 replaces:
   - dashboard_history_market_trend
   - rm_monthly_category_performance

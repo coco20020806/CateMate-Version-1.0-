@@ -1,0 +1,26 @@
+schema_version: data_module_v3
+module_id: keywords
+module_name: 热门关键词
+module_type: keyword
+status: active
+owner: CateMate
+last_updated: "2026-07-15"
+
+source_schema_ref: source_schema.yaml
+
+source_bindings:
+  allowed_grains: [category]
+  by_grain:
+    category:
+      default_table_id: dashboard_keywords
+      candidates: [dashboard_keywords]
+      loader: flat_workbook
+
+replaces:
+  - dashboard_keywords
+
+outputs:
+  primary:
+    - table_id: top_keywords
+      grain: [keyword]
+      top_n: 20

@@ -5,6 +5,7 @@ manifest_path: processed_manifest.yaml
 default_update_mode: append_merge
 tables:
   - table_id: rm_raw_data
+    grain: category
     source_workbook_keywords:
       - RM
     source_sheet: Raw data
@@ -32,6 +33,7 @@ tables:
     update_mode: append_merge
 
   - table_id: dashboard_history
+    grain: category
     source_workbook_keywords:
       - 2026
     source_sheet: 过去数据
@@ -50,6 +52,7 @@ tables:
     update_mode: append_merge
 
   - table_id: dashboard_daily_data
+    grain: category
     source_workbook_keywords:
       - 2026
     source_sheet: daily data
@@ -70,6 +73,7 @@ tables:
     update_mode: append_merge
 
   - table_id: dashboard_price_tier
+    grain: category
     source_workbook_keywords:
       - 2026
     source_sheet: price tier
@@ -93,6 +97,7 @@ tables:
     update_mode: append_merge
 
   - table_id: dashboard_price_tier_prior
+    grain: category
     source_workbook_keywords:
       - 2026
     source_sheet: price tier2
@@ -114,6 +119,7 @@ tables:
     update_mode: append_merge
 
   - table_id: dashboard_top_shop
+    grain: shop
     source_workbook_keywords:
       - 2026
     source_sheet: top shop
@@ -135,6 +141,7 @@ tables:
     update_mode: append_merge
 
   - table_id: dashboard_keywords
+    grain: category
     source_workbook_keywords:
       - 2026
     source_sheet: keywords
@@ -156,6 +163,7 @@ tables:
     update_mode: append_merge
 
   - table_id: dashboard_top_listing
+    grain: item
     source_workbook_keywords:
       - 2026
     source_sheet: 热门商品

@@ -53,17 +53,23 @@ from catemate.understanding.clarification import (
     normalize_clarifying_question_ids,
     requires_clarification_gate,
     save_understanding_spec,
+    user_declined_rawdata,
 )
 from catemate.understanding.clarification_merge import (
     merge_clarification_answers_into_understanding,
     needs_clarification_merge,
 )
+from catemate.understanding.category_confirmation import (
+    finalize_after_category_confirmation,
+    initialize_category_positioning,
+    is_category_confirmation_complete,
+)
 from catemate.understanding.generator import RequirementUnderstandingGenerator
 from catemate.understanding.schemas import RequirementUnderstandingSpec, UnderstandingStatus
 
-PlanningMode = Literal["ai_direct", "module_selection"]
+PlanningMode = Literal["ai_direct", "module_selection", "v2_solve_loop"]
 StopAfter = Literal["case_config", "understanding", "module_selection", "planning"] | None
-ContinueAfter = Literal["clarification", "module_selection", "planning"]
+ContinueAfter = Literal["category_confirmation", "clarification", "module_selection", "planning"]
 
 
 @dataclass
@@ -85,7 +91,7 @@ def run_pipeline_from_request_text(
     processed_manifest_path: Path | str = PROCESSED_DATA_DIR / "processed_manifest.yaml",
     raw_data_dir: Path | str = RAW_DATA_DIR,
     processed_data_dir: Path | str = PROCESSED_DATA_DIR,
-    category_tree_lookup: Path | str = PROCESSED_DATA_DIR / "sph_category_tree_lookup.csv",
+    category_tree_lookup: Path | str = RAW_DATA_DIR / "category_tree_en.json",
     stop_after: StopAfter = None,
     ai_client: CateMateAIClient | None = None,
     timestamp: str | None = None,
@@ -234,6 +240,7 @@ def run_pipeline_from_request_text(
                 category_tree_lookup_path=Path(category_tree_lookup),
             )
             understanding_spec = normalize_clarifying_question_ids(understanding_spec)
+            understanding_spec = initialize_category_positioning(understanding_spec)
             understanding_spec_path = output_dir / f"requirement_understanding_{safe_case_id}_{stamp}.json"
             understanding_spec_path.write_text(
                 json.dumps(understanding_spec.model_dump(mode="json"), ensure_ascii=False, indent=2),
@@ -249,8 +256,9 @@ def run_pipeline_from_request_text(
                 planning_mode=planning_mode,
                 case_config_path=case_config_path,
                 understanding_spec_path=understanding_spec_path,
-                status="understanding_generated",
+                status="awaiting_category_confirmation",
             )
+            return PipelineRunResult(exit_code=0, manifest_path=pipeline_manifest_path, manifest=manifest)
         except Exception as exc:
             _write_failed_manifest(
                 pipeline_manifest_path=pipeline_manifest_path,
@@ -266,71 +274,6 @@ def run_pipeline_from_request_text(
                 error_message=str(exc),
             )
             return PipelineRunResult(exit_code=1, manifest_path=pipeline_manifest_path, error_message=str(exc))
-
-        if stop_after == "understanding":
-            return PipelineRunResult(exit_code=0, manifest_path=pipeline_manifest_path, manifest=manifest)
-
-        if understanding_spec.status != UnderstandingStatus.READY_FOR_MODULE_SELECTION:
-            blocked_reason = "; ".join(understanding_spec.readiness.blocking_reasons) or str(
-                understanding_spec.status.value
-            )
-            manifest = update_and_save_manifest(
-                manifest_path=pipeline_manifest_path,
-                case_id=case_id,
-                timestamp=stamp,
-                request_text=text,
-                provider=provider,
-                model=model,
-                planning_mode=planning_mode,
-                case_config_path=case_config_path,
-                understanding_spec_path=understanding_spec_path,
-                status="blocked_by_understanding",
-                error_step="understanding",
-                error_message=blocked_reason,
-            )
-            return PipelineRunResult(
-                exit_code=1,
-                manifest_path=pipeline_manifest_path,
-                manifest=manifest,
-                error_message=blocked_reason,
-            )
-
-        if requires_clarification_gate(understanding_spec) and not is_clarification_complete(
-            understanding_spec
-        ):
-            manifest = update_and_save_manifest(
-                manifest_path=pipeline_manifest_path,
-                case_id=case_id,
-                timestamp=stamp,
-                request_text=text,
-                provider=provider,
-                model=model,
-                planning_mode=planning_mode,
-                case_config_path=case_config_path,
-                understanding_spec_path=understanding_spec_path,
-                status="awaiting_clarification",
-            )
-            return PipelineRunResult(exit_code=0, manifest_path=pipeline_manifest_path, manifest=manifest)
-
-        return _continue_after_understanding(
-            client=client,
-            manifest_path=pipeline_manifest_path,
-            manifest=manifest,
-            case_id=case_id,
-            safe_case_id=safe_case_id,
-            stamp=stamp,
-            request_text=text,
-            provider=provider,
-            model=model,
-            case_config_path=case_config_path,
-            understanding_spec=understanding_spec,
-            understanding_spec_path=understanding_spec_path,
-            output_dir=output_dir,
-            data_modules_dir=Path(data_modules_dir),
-            raw_data_dir=Path(raw_data_dir),
-            processed_data_dir=Path(processed_data_dir),
-            stop_after=stop_after,
-        )
 
     if stop_after == "planning":
         return PipelineRunResult(exit_code=0, manifest_path=pipeline_manifest_path, manifest=manifest)
@@ -410,10 +353,10 @@ def run_pipeline_continue_from_manifest(
     except Exception as exc:
         return PipelineRunResult(exit_code=2, error_message=str(exc))
 
-    if manifest.planning_mode != "module_selection":
+    if manifest.planning_mode not in {"module_selection", "v2_solve_loop"}:
         return PipelineRunResult(
             exit_code=2,
-            error_message="continue-from-manifest only supports planning_mode=module_selection.",
+            error_message="continue-from-manifest supports planning_mode=module_selection or v2_solve_loop.",
         )
 
     if manifest.status == "workbook_generated":
@@ -428,6 +371,22 @@ def run_pipeline_continue_from_manifest(
         understanding_spec = _load_understanding_spec(understanding_spec_path)
     except Exception as exc:
         return PipelineRunResult(exit_code=2, error_message=str(exc))
+
+    if manifest.status == "awaiting_category_confirmation":
+        return PipelineRunResult(
+            exit_code=1,
+            manifest_path=manifest_path,
+            manifest=manifest,
+            error_message="请先完成类目定位确认（勾选类目并点击【确认类目】）。",
+        )
+
+    if not is_category_confirmation_complete(understanding_spec):
+        return PipelineRunResult(
+            exit_code=1,
+            manifest_path=manifest_path,
+            manifest=manifest,
+            error_message="类目尚未确认，无法继续 pipeline。",
+        )
 
     if not is_clarification_complete(understanding_spec):
         return PipelineRunResult(
@@ -506,6 +465,148 @@ def run_pipeline_continue_from_manifest(
     )
 
 
+def run_pipeline_continue_after_category_confirmation(
+    manifest_path: Path,
+    *,
+    data_modules_dir: Path | str = CONFIG_DIR / "data_modules",
+    raw_data_dir: Path | str = RAW_DATA_DIR,
+    processed_data_dir: Path | str = PROCESSED_DATA_DIR,
+    stop_after: StopAfter = None,
+    ai_client: CateMateAIClient | None = None,
+) -> PipelineRunResult:
+    """Resume after user confirmed categories: finalize, then clarification / downstream."""
+    manifest_path = Path(manifest_path)
+    try:
+        manifest = load_pipeline_manifest(manifest_path)
+    except Exception as exc:
+        return PipelineRunResult(exit_code=2, error_message=str(exc))
+
+    if manifest.planning_mode not in {"module_selection", "v2_solve_loop"}:
+        return PipelineRunResult(
+            exit_code=2,
+            error_message="category confirmation continue supports module_selection or v2_solve_loop.",
+        )
+
+    understanding_spec_path = resolve_manifest_path(PROJECT_ROOT, manifest.understanding_spec_path)
+    case_config_path = resolve_manifest_path(PROJECT_ROOT, manifest.case_config_path)
+    if understanding_spec_path is None or case_config_path is None:
+        return PipelineRunResult(exit_code=2, error_message="Manifest missing understanding or case_config path.")
+
+    try:
+        understanding_spec = _load_understanding_spec(understanding_spec_path)
+    except Exception as exc:
+        return PipelineRunResult(exit_code=2, error_message=str(exc))
+
+    if not is_category_confirmation_complete(understanding_spec):
+        return PipelineRunResult(
+            exit_code=1,
+            manifest_path=manifest_path,
+            manifest=manifest,
+            error_message="类目尚未确认。",
+        )
+
+    if ai_client is None:
+        try:
+            settings = AISettings.from_env()
+            provider = settings.provider
+            model = settings.model
+            ai_client = CateMateAIClient(settings)
+        except ValueError as exc:
+            return PipelineRunResult(exit_code=2, error_message=str(exc))
+    else:
+        provider = getattr(ai_client, "provider", "") or manifest.provider
+        model = getattr(ai_client, "model", "") or manifest.model
+
+    try:
+        if not understanding_spec.understood.inferred_category_candidates:
+            understanding_spec = finalize_after_category_confirmation(understanding_spec, ai_client=ai_client)
+        save_understanding_spec(understanding_spec, understanding_spec_path)
+    except Exception as exc:
+        return PipelineRunResult(
+            exit_code=1,
+            manifest_path=manifest_path,
+            manifest=manifest,
+            error_message=f"Failed to finalize category confirmation: {exc}",
+        )
+
+    if understanding_spec.status != UnderstandingStatus.READY_FOR_MODULE_SELECTION:
+        blocked_reason = "; ".join(understanding_spec.readiness.blocking_reasons) or str(
+            understanding_spec.status.value
+        )
+        manifest = update_and_save_manifest(
+            manifest_path=manifest_path,
+            case_id=manifest.case_id,
+            timestamp=manifest.timestamp,
+            request_text=manifest.request_text,
+            provider=provider,
+            model=model,
+            planning_mode=manifest.planning_mode,
+            case_config_path=case_config_path,
+            understanding_spec_path=understanding_spec_path,
+            status="blocked_by_understanding",
+            error_step="category_confirmation",
+            error_message=blocked_reason,
+        )
+        return PipelineRunResult(
+            exit_code=1,
+            manifest_path=manifest_path,
+            manifest=manifest,
+            error_message=blocked_reason,
+        )
+
+    if requires_clarification_gate(understanding_spec) and not is_clarification_complete(understanding_spec):
+        manifest = update_and_save_manifest(
+            manifest_path=manifest_path,
+            case_id=manifest.case_id,
+            timestamp=manifest.timestamp,
+            request_text=manifest.request_text,
+            provider=provider,
+            model=model,
+            planning_mode=manifest.planning_mode,
+            case_config_path=case_config_path,
+            understanding_spec_path=understanding_spec_path,
+            status="awaiting_clarification",
+        )
+        return PipelineRunResult(exit_code=0, manifest_path=manifest_path, manifest=manifest)
+
+    manifest = update_and_save_manifest(
+        manifest_path=manifest_path,
+        case_id=manifest.case_id,
+        timestamp=manifest.timestamp,
+        request_text=manifest.request_text,
+        provider=provider,
+        model=model,
+        planning_mode=manifest.planning_mode,
+        case_config_path=case_config_path,
+        understanding_spec_path=understanding_spec_path,
+        status="category_confirmed",
+    )
+
+    safe_case_id = safe_slug(manifest.case_id, timestamp=manifest.timestamp)
+    output_dir = manifest_path.parent
+
+    return _continue_after_understanding(
+        client=ai_client,
+        manifest_path=manifest_path,
+        manifest=manifest,
+        case_id=manifest.case_id,
+        safe_case_id=safe_case_id,
+        stamp=manifest.timestamp,
+        request_text=manifest.request_text,
+        provider=provider,
+        model=model,
+        case_config_path=case_config_path,
+        understanding_spec=understanding_spec,
+        understanding_spec_path=understanding_spec_path,
+        output_dir=output_dir,
+        data_modules_dir=Path(data_modules_dir),
+        raw_data_dir=Path(raw_data_dir),
+        processed_data_dir=Path(processed_data_dir),
+        stop_after=stop_after,
+        start_after="clarification",
+    )
+
+
 def _load_understanding_spec(path: Path) -> RequirementUnderstandingSpec:
     payload = json.loads(path.read_text(encoding="utf-8"))
     spec = RequirementUnderstandingSpec.model_validate(payload)
@@ -535,6 +636,21 @@ def _continue_after_understanding(
     existing_module_selection_plan_path: Path | None = None,
     existing_planning_spec_path: Path | None = None,
 ) -> PipelineRunResult:
+    if manifest.planning_mode == "v2_solve_loop":
+        from catemate.pipeline.v2_runner import continue_v2_solve_loop
+
+        return continue_v2_solve_loop(
+            manifest_path=manifest_path,
+            manifest=manifest,
+            understanding_spec=understanding_spec,
+            understanding_spec_path=understanding_spec_path,
+            output_dir=output_dir,
+            safe_case_id=safe_case_id,
+            stamp=stamp,
+            processed_data_dir=processed_data_dir,
+            ai_client=client,
+        )
+
     module_selection_plan_path = existing_module_selection_plan_path
     module_plan: ModuleSelectionPlan | None = None
     planning_spec_path = existing_planning_spec_path
@@ -737,7 +853,12 @@ def _run_understanding(
     category_tree_lookup_path: Path,
 ) -> RequirementUnderstandingSpec:
     module_summaries = load_data_module_summaries(data_modules_dir)
-    category_tree_candidates = load_category_tree_l3_candidates(category_tree_lookup_path)
+    if category_tree_lookup_path.suffix.lower() == ".json":
+        from catemate.data.category_tree_en import list_category_tree_candidates
+
+        category_tree_candidates = list_category_tree_candidates()
+    else:
+        category_tree_candidates = load_category_tree_l3_candidates(category_tree_lookup_path)
     return RequirementUnderstandingGenerator(client).generate(
         request_text=request_text,
         data_module_summaries=module_summaries,

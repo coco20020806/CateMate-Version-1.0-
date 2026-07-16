@@ -11,21 +11,42 @@ from catemate.schemas.category_requirement import FieldCheck, SheetCheck, Source
 
 
 def scan_excel_sources(raw_data_dir: Path) -> list[SourceFile]:
-    """Return Excel files in the raw data directory."""
+    """Return Excel files in raw data directory (flat or grain subdirs)."""
     files: list[SourceFile] = []
-    for path in sorted(raw_data_dir.glob("*.xlsx")):
-        stat = path.stat()
-        files.append(
-            SourceFile(
-                path=path,
-                size_bytes=stat.st_size,
-                modified_time=datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
-                matched_source_id="sph_monthly_category_performance"
-                if "SPH" in path.name and "RM" in path.name
-                else None,
+    search_paths: list[Path] = []
+    for sub in ("category", "shop", "item"):
+        grain_dir = raw_data_dir / sub
+        if grain_dir.is_dir():
+            search_paths.append(grain_dir)
+    if not search_paths:
+        search_paths = [raw_data_dir]
+
+    for search_dir in search_paths:
+        for path in sorted(search_dir.glob("*.xlsx")):
+            stat = path.stat()
+            grain = search_dir.name if search_dir.parent == raw_data_dir else None
+            files.append(
+                SourceFile(
+                    path=path,
+                    size_bytes=stat.st_size,
+                    modified_time=datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+                    matched_source_id=_guess_source_id(path.name, grain),
+                )
             )
-        )
     return files
+
+
+def _guess_source_id(filename: str, grain: str | None) -> str | None:
+    name = filename.lower()
+    if "sph" in name and "rm" in name:
+        return "rm_raw_data"
+    if "2026" in name or "品类数据看板" in filename:
+        if grain == "shop":
+            return "dashboard_top_shop"
+        if grain == "item":
+            return "dashboard_top_listing"
+        return "dashboard_history"
+    return None
 
 
 def check_required_sheets(workbook_path: Path, required_sheets: list[str]) -> list[SheetCheck]:

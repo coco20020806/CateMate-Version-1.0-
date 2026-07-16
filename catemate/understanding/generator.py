@@ -12,6 +12,7 @@ from catemate.case_generation.context_loader import fallback_case_id, slug_or_em
 from catemate.understanding.prompt_builder import build_requirement_understanding_messages
 from catemate.understanding.clarification import normalize_clarifying_question_ids
 from catemate.understanding.readiness import normalize_understanding_readiness
+from catemate.understanding.site_normalizer import normalize_target_sites
 from catemate.understanding.schemas import (
     AnalysisIntent,
     ClarifyingQuestion,
@@ -48,6 +49,7 @@ class RequirementUnderstandingGenerator:
         spec = _validate_spec(payload, original_request=request_text)
         spec = _ensure_case_id(spec)
         spec = normalize_clarifying_question_ids(spec)
+        spec = normalize_target_sites(spec)
         return normalize_understanding_readiness(spec)
 
 
@@ -161,6 +163,18 @@ def _normalize_understood(raw: dict[str, Any]) -> dict[str, Any]:
             raw.get("output_expectation") or "数据需求 workbook / PPT-ready workbook"
         ),
         "metric_definitions": {str(k): str(v) for k, v in metric_definitions.items()},
+        "sub_l3_concept": _normalize_sub_l3_concept(raw.get("sub_l3_concept") or {}),
+    }
+
+
+def _normalize_sub_l3_concept(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        raw = {}
+    return {
+        "is_sub_l3": bool(raw.get("is_sub_l3", False)),
+        "concept_id": str(raw.get("concept_id") or "").strip(),
+        "display_name": str(raw.get("display_name") or "").strip(),
+        "parent_l3": str(raw.get("parent_l3") or "").strip(),
     }
 
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from catemate.understanding.schemas import (
     ClarifyingQuestion,
     ConfidenceLevel,
+    QuestionCategory,
     RequirementAssumption,
     RequirementUnderstandingSpec,
     UserAnswer,
@@ -47,6 +48,38 @@ def unanswered_clarifying_questions(spec: RequirementUnderstandingSpec) -> list[
 
 def is_clarification_complete(spec: RequirementUnderstandingSpec) -> bool:
     return len(unanswered_clarifying_questions(spec)) == 0
+
+
+def rawdata_clarifying_questions(spec: RequirementUnderstandingSpec) -> list[ClarifyingQuestion]:
+    return [
+        question
+        for question in spec.clarifying_questions
+        if question.question_category == QuestionCategory.RAWDATA
+    ]
+
+
+def answer_for_question(spec: RequirementUnderstandingSpec, question_id: str) -> str | None:
+    for answer in spec.user_answers:
+        if answer.question_id == question_id:
+            return answer.answer
+    return None
+
+
+def user_declined_rawdata(spec: RequirementUnderstandingSpec) -> bool:
+    """True when user skipped at least one rawdata_* clarification (partial data path)."""
+    for question in rawdata_clarifying_questions(spec):
+        if answer_for_question(spec, question.question_id) == SKIPPED_ANSWER:
+            return True
+    return False
+
+
+def all_rawdata_questions_resolved(spec: RequirementUnderstandingSpec) -> bool:
+    """All rawdata questions answered or skipped."""
+    rawdata = rawdata_clarifying_questions(spec)
+    if not rawdata:
+        return True
+    answered = answered_question_ids(spec)
+    return all(question.question_id in answered for question in rawdata)
 
 
 def requires_clarification_gate(spec: RequirementUnderstandingSpec) -> bool:

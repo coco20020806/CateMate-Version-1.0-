@@ -1,0 +1,18 @@
+schema_version: source_schema_v1
+module_id: keywords
+
+source_columns:
+  required:
+    - column: keyword
+      dtype: string
+    - column: current_daily_item_click(SUM)
+      dtype: float
+
+compute_rules:
+  group_by: [keyword]
+  aggregate:
+    - column: current_daily_item_click(SUM)
+      function: sum
+  top_n: 20
+  sort_by: current_daily_item_click(SUM)
+  sort_order: desc

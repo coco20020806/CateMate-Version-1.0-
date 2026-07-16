@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import pandas as pd
+
+from catemate.scope.schemas import ScopedFrame
 
 COL_SITE = "grass_region"
 COL_MONTH = "grass_month"
@@ -47,14 +49,6 @@ GROUP_BY = (COL_SITE, COL_MONTH)
 @dataclass(frozen=True)
 class ComputeParams:
     metric_id: MetricId = "gmv"
-
-
-@dataclass
-class ScopedFrame:
-    data: pd.DataFrame
-    scope_label: str
-    scope_spec: dict[str, Any] = field(default_factory=dict)
-    source_id: str = ""
 
 
 def _validate_required_columns(frame: ScopedFrame, metric_id: str) -> None:

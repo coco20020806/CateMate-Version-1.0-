@@ -1,0 +1,167 @@
+schema_version: data_module_v3
+module_id: top_sku_info
+module_name: Top SKU 商品信息
+module_type: listing
+status: active
+owner: CateMate
+last_updated: "2026-07-15"
+
+source_schema_ref: source_schema.yaml
+
+source_bindings:
+  allowed_grains: [item]
+  by_grain:
+    item:
+      default_table_id: item_l3_category_csv
+      candidates: [item_l3_category_csv]
+      loader: category_folder
+      requires_scope: [category_l1, category_l2, category_l3]
+
+replaces:
+  - dashboard_top_listing
+  - top_listing
+
+business_purpose:
+  description: >
+    接收外部 Scope 已过滤的 item 文件夹商品明细。在每个站点×月份切片内，
+    按 orders 或 gmv_usd 排序输出 Top N SKU 及商品信息（名称、链接、价格等）。
+  typical_questions:
+    - 该分类的头部商品是什么？典型商品有哪些？
+    - 某站点、某时间下按订单量 / GMV 排名的代表性 SKU？
+    - 头部 SKU 的价格与价格带参考？
+  decision_support:
+    - 爆款对标与选品参考
+    - orders vs gmv 双视角审视头部商品
+  not_suitable_for:
+    - 全量 SKU 均价或价格段结构
+    - 店铺级经营分析
+    - 跨站点汇总排名
+    - 月度趋势与环比
+
+scope_expectations:
+  description: 行级过滤、类目路径与 item 文件夹解析由外部 Scope 完成。
+  notes:
+    - 展示单元为单站点 × 单月份切片
+    - sort_by=both 且仅一列指标时自动降级为可用列排序
+
+compute_params:
+  top_n:
+    type: integer
+    required: false
+    description: 指定时仅产出该档位；未指定时默认 5、10、20 三档
+  sort_by:
+    type: enum
+    allowed: [orders, gmv, both]
+    required: false
+    default: both
+    description: 排序规则；both 时两列都有则各出一套表
+
+outputs:
+  primary:
+    - table_id: top_sku_by_orders_top5
+      sort_metric: orders
+      top_n: 5
+      grain: [grass_region, grass_month, item_name]
+      primary_key: [grass_region, grass_month, rank]
+      columns:
+        - { name: grass_region, dtype: string, role: site, nullable: false }
+        - { name: grass_month, dtype: string, role: time, nullable: false }
+        - { name: rank, dtype: integer, role: rank, nullable: false }
+        - { name: item_name, dtype: string, role: item, nullable: false }
+        - { name: item_link, dtype: string, role: item, nullable: false }
+        - { name: orders, dtype: float, role: metric, nullable: true }
+        - { name: gmv_usd, dtype: float, role: metric, nullable: true }
+      produced_by: compute.main
+
+    - table_id: top_sku_by_orders_top10
+      sort_metric: orders
+      top_n: 10
+      grain: [grass_region, grass_month, item_name]
+      produced_by: compute.main
+
+    - table_id: top_sku_by_orders_top20
+      sort_metric: orders
+      top_n: 20
+      grain: [grass_region, grass_month, item_name]
+      produced_by: compute.main
+
+    - table_id: top_sku_by_gmv_top5
+      sort_metric: gmv
+      top_n: 5
+      grain: [grass_region, grass_month, item_name]
+      produced_by: compute.main
+
+    - table_id: top_sku_by_gmv_top10
+      sort_metric: gmv
+      top_n: 10
+      grain: [grass_region, grass_month, item_name]
+      produced_by: compute.main
+
+    - table_id: top_sku_by_gmv_top20
+      sort_metric: gmv
+      top_n: 20
+      grain: [grass_region, grass_month, item_name]
+      produced_by: compute.main
+
+  derived: []
+
+chart_presets:
+  - preset_id: top_sku_orders_table_5
+    sort_metric: orders
+    output_table_id: top_sku_by_orders_top5
+    suggested_chart_type: table
+    binding: soft
+
+  - preset_id: top_sku_orders_table_10
+    sort_metric: orders
+    output_table_id: top_sku_by_orders_top10
+    suggested_chart_type: table
+    binding: soft
+
+  - preset_id: top_sku_orders_table_20
+    sort_metric: orders
+    output_table_id: top_sku_by_orders_top20
+    suggested_chart_type: table
+    binding: soft
+
+  - preset_id: top_sku_gmv_table_5
+    sort_metric: gmv
+    output_table_id: top_sku_by_gmv_top5
+    suggested_chart_type: table
+    binding: soft
+
+  - preset_id: top_sku_gmv_table_10
+    sort_metric: gmv
+    output_table_id: top_sku_by_gmv_top10
+    suggested_chart_type: table
+    binding: soft
+
+  - preset_id: top_sku_gmv_table_20
+    sort_metric: gmv
+    output_table_id: top_sku_by_gmv_top20
+    suggested_chart_type: table
+    binding: soft
+
+planning_hints:
+  explicit_triggers:
+    - 头部商品
+    - Top SKU
+    - 热门商品
+    - 典型商品
+    - 代表性 listing
+    - item 文件夹
+  use_when:
+    - 需要站点×月份下的 Top N SKU 样本
+  avoid_when:
+    - 价格段分布
+    - 店铺排名
+    - 月度市场趋势
+    - 全量 SKU 而非 Top N
+
+limitations:
+  - 默认一次调用最多产出 6 张表（orders+gmv × top5/10/20）
+  - 并列排名为竞争排名（1,2,2,4）
+  - 不替代价格段或趋势类模块
+
+missing_value_policy:
+  do_not_fill_null: true

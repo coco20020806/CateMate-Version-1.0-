@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from catemate.ai.client import CateMateAIClient
 from catemate.case_generation.confirmation_enrichment import enrich_confirmation_templates
+from catemate.understanding.site_normalizer import normalize_case_config_target_sites
 from catemate.case_generation.prompt_builder import build_case_config_messages
 from catemate.schemas.category_requirement import CategoryAnalysisCaseConfig
 
@@ -36,6 +37,14 @@ class CaseConfigGenerator:
         payload = _normalize_case_payload(self.ai_client.complete_json(messages))
         try:
             config = CategoryAnalysisCaseConfig.model_validate(payload)
+            config = config.model_copy(
+                update={
+                    "target_sites": normalize_case_config_target_sites(
+                        config.target_sites,
+                        request_text=request_text,
+                    )
+                }
+            )
             return enrich_confirmation_templates(config)
         except ValidationError as exc:
             snippet = str(payload)[:800]

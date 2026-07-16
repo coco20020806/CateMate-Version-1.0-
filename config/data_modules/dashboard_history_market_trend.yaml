@@ -2,7 +2,7 @@ schema_version: data_module_v2
 module_id: dashboard_history_market_trend
 module_name: 看板市场历史趋势
 module_type: market_trend
-status: active
+status: deprecated
 owner: CateMate
 last_updated: "2026-07-09"
 

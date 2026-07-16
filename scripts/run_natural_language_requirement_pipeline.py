@@ -14,6 +14,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from catemate.core.paths import CONFIG_DIR, OUTPUTS_DIR, PROCESSED_DATA_DIR, RAW_DATA_DIR, ensure_project_dirs
 from catemate.pipeline.runner import (
     PipelineRunResult,
+    run_pipeline_continue_after_category_confirmation,
     run_pipeline_continue_from_manifest,
     run_pipeline_from_request_text,
 )
@@ -67,7 +68,7 @@ def main() -> int:
     parser.add_argument(
         "--category-tree-lookup",
         type=Path,
-        default=PROCESSED_DATA_DIR / "sph_category_tree_lookup.csv",
+        default=RAW_DATA_DIR / "category_tree_en.json",
         help="Path to category tree lookup CSV for understanding L3 matching.",
     )
     parser.add_argument(
@@ -82,9 +83,9 @@ def main() -> int:
     )
     parser.add_argument(
         "--planning-mode",
-        choices=["ai_direct", "module_selection"],
+        choices=["ai_direct", "module_selection", "v2_solve_loop"],
         default="ai_direct",
-        help="Planning mode: ai_direct (legacy) or module_selection (deterministic adapter).",
+        help="Planning mode: ai_direct, module_selection, or v2_solve_loop.",
     )
     parser.add_argument(
         "--stop-after-understanding",
@@ -101,6 +102,12 @@ def main() -> int:
         type=Path,
         default=None,
         help="Resume pipeline from an existing pipeline manifest JSON (module_selection mode).",
+    )
+    parser.add_argument(
+        "--continue-after-category-confirmation",
+        type=Path,
+        default=None,
+        help="Resume pipeline after user confirmed categories on manifest.",
     )
     args = parser.parse_args()
 
@@ -123,6 +130,18 @@ def main() -> int:
         stop_after = "module_selection"
     elif args.stop_after_planning:
         stop_after = "planning"
+
+    if args.continue_after_category_confirmation is not None:
+        ensure_project_dirs()
+        result = run_pipeline_continue_after_category_confirmation(
+            args.continue_after_category_confirmation,
+            data_modules_dir=args.data_modules_dir,
+            raw_data_dir=args.raw_data_dir,
+            processed_data_dir=args.processed_data_dir,
+            stop_after=stop_after,
+        )
+        _print_cli_summary(result)
+        return result.exit_code
 
     if args.continue_from_manifest is not None:
         ensure_project_dirs()

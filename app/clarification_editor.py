@@ -17,7 +17,7 @@ from catemate.understanding.clarification import (
     save_understanding_spec,
     unanswered_clarifying_questions,
 )
-from catemate.understanding.schemas import RequirementUnderstandingSpec
+from catemate.understanding.schemas import QuestionCategory, QuestionType, RequirementUnderstandingSpec
 
 
 def load_understanding_spec(path: Path) -> RequirementUnderstandingSpec:
@@ -50,64 +50,111 @@ def render_clarification_editor(
 
     st.caption(f"还有 {len(pending)} 条澄清问题待处理。请逐条自然语言回答，或选择跳过（将记录默认假设）。")
 
-    for question in pending:
-        with st.container(border=True):
-            st.markdown(f"**{question.question}**")
-            if question.reason:
-                st.caption(question.reason)
-            if question.default_assumption:
-                st.caption(f"跳过默认假设：{question.default_assumption}")
+    business_pending = [
+        q for q in pending if q.question_category == QuestionCategory.CLARIFY_BUSINESS
+    ]
+    rawdata_pending = [q for q in pending if q.question_category == QuestionCategory.RAWDATA]
 
-            answer_key = f"clarify_answer::{understanding_spec_path}::{question.question_id}"
-            answer_text = st.text_area(
-                "自然语言回答",
-                key=answer_key,
-                height=100,
-                placeholder="请输入你的回答；若选择跳过可留空。",
-            )
+    if business_pending:
+        st.markdown("#### 业务澄清")
+    for question in business_pending:
+        _render_question_editor(
+            question,
+            understanding_spec_path=understanding_spec_path,
+            manifest=manifest,
+            manifest_path=manifest_path,
+            on_clarification_complete=on_clarification_complete,
+        )
 
-            col_answer, col_skip = st.columns(2)
-            with col_answer:
-                if st.button(
-                    "提交回答",
-                    key=f"clarify_submit::{question.question_id}",
-                    type="primary",
-                    disabled=not answer_text.strip(),
-                ):
-                    try:
-                        spec = apply_clarification_answer(
-                            spec,
-                            question.question_id,
-                            answer_text=answer_text,
-                            skipped=False,
-                        )
-                        save_understanding_spec(spec, understanding_spec_path)
-                        if on_clarification_complete is not None:
-                            on_clarification_complete(spec)
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(f"保存回答失败：{exc}")
-
-            with col_skip:
-                if st.button("跳过", key=f"clarify_skip::{question.question_id}"):
-                    try:
-                        spec = apply_clarification_answer(
-                            spec,
-                            question.question_id,
-                            skipped=True,
-                        )
-                        save_understanding_spec(spec, understanding_spec_path)
-                        if on_clarification_complete is not None:
-                            on_clarification_complete(spec)
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(f"跳过失败：{exc}")
+    if rawdata_pending:
+        st.markdown("#### 数据补充（请粘贴文件完整路径）")
+    for question in rawdata_pending:
+        _render_question_editor(
+            question,
+            understanding_spec_path=understanding_spec_path,
+            manifest=manifest,
+            manifest_path=manifest_path,
+            on_clarification_complete=on_clarification_complete,
+            is_file_path=True,
+        )
 
     if is_clarification_complete(spec):
         _update_manifest_clarification_status(manifest, manifest_path, spec, complete=True)
         return spec, True
 
     return spec, False
+
+
+def _render_question_editor(
+    question,
+    *,
+    understanding_spec_path: Path,
+    manifest: PipelineManifest,
+    manifest_path: Path,
+    on_clarification_complete,
+    is_file_path: bool = False,
+) -> None:
+    with st.container(border=True):
+        st.markdown(f"**{question.question}**")
+        if question.reason:
+            st.caption(question.reason)
+        if question.default_assumption:
+            st.caption(f"跳过默认假设：{question.default_assumption}")
+
+        answer_key = f"clarify_answer::{understanding_spec_path}::{question.question_id}"
+        use_file_path = is_file_path or question.expected_answer_type == QuestionType.FILE_PATH
+        answer_text = st.text_input(
+            "文件完整路径" if use_file_path else "自然语言回答",
+            key=answer_key,
+            placeholder="例如 C:\\data\\shop_sales.xlsx" if use_file_path else "请输入你的回答；若选择跳过可留空。",
+        )
+
+        col_answer, col_skip = st.columns(2)
+        with col_answer:
+            if st.button(
+                "提交回答",
+                key=f"clarify_submit::{question.question_id}",
+                type="primary",
+                disabled=not answer_text.strip(),
+            ):
+                try:
+                    spec = load_understanding_spec(understanding_spec_path)
+                    if use_file_path and question.rawdata_grain and question.rawdata_table_id:
+                        from catemate.data.rawdata_ingest import ingest_rawdata_from_path
+
+                        ingest_rawdata_from_path(
+                            source_path=answer_text.strip(),
+                            grain=question.rawdata_grain,
+                            table_id=question.rawdata_table_id,
+                        )
+                    spec = apply_clarification_answer(
+                        spec,
+                        question.question_id,
+                        answer_text=answer_text,
+                        skipped=False,
+                    )
+                    save_understanding_spec(spec, understanding_spec_path)
+                    if on_clarification_complete is not None:
+                        on_clarification_complete(spec)
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"保存回答失败：{exc}")
+
+        with col_skip:
+            if st.button("跳过", key=f"clarify_skip::{question.question_id}"):
+                try:
+                    spec = load_understanding_spec(understanding_spec_path)
+                    spec = apply_clarification_answer(
+                        spec,
+                        question.question_id,
+                        skipped=True,
+                    )
+                    save_understanding_spec(spec, understanding_spec_path)
+                    if on_clarification_complete is not None:
+                        on_clarification_complete(spec)
+                    st.rerun()
+                except Exception as exc:
+                    st.error(f"跳过失败：{exc}")
 
 
 def mark_clarification_completed(manifest: PipelineManifest, manifest_path: Path) -> None:

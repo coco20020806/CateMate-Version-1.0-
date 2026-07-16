@@ -1,0 +1,24 @@
+schema_version: source_schema_v1
+module_id: top_shop
+
+source_columns:
+  required:
+    - column: shop_id
+      dtype: string
+    - column: grass_region
+      dtype: string
+    - column: mtd_adgmv_usd(SUM)
+      dtype: float
+    - column: mtd_ado(SUM)
+      dtype: float
+
+compute_rules:
+  group_by: [shop_id, grass_region]
+  aggregate:
+    - column: mtd_adgmv_usd(SUM)
+      function: sum
+    - column: mtd_ado(SUM)
+      function: sum
+  top_n: 20
+  sort_by: mtd_adgmv_usd(SUM)
+  sort_order: desc

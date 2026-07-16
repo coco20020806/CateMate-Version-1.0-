@@ -7,6 +7,15 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DATA_DIR = PROJECT_ROOT / "CateMate_rawdata"
+RAWDATA_CATEGORY_DIR = RAW_DATA_DIR / "category"
+RAWDATA_SHOP_DIR = RAW_DATA_DIR / "shop"
+RAWDATA_ITEM_DIR = RAW_DATA_DIR / "item"
+RAWDATA_GRAIN_DIRS = {
+    "category": RAWDATA_CATEGORY_DIR,
+    "shop": RAWDATA_SHOP_DIR,
+    "item": RAWDATA_ITEM_DIR,
+}
+CATEGORY_TREE_EN_PATH = RAW_DATA_DIR / "category_tree_en.json"
 PROCESSED_DATA_DIR = PROJECT_ROOT / "CateMate_processeddata"
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 OUTPUTS_RUNS_DIR = OUTPUTS_DIR / "runs"
@@ -48,6 +57,9 @@ def ensure_project_dirs() -> None:
     """Create runtime directories used by CateMate."""
     for path in (
         RAW_DATA_DIR,
+        RAWDATA_CATEGORY_DIR,
+        RAWDATA_SHOP_DIR,
+        RAWDATA_ITEM_DIR,
         PROCESSED_DATA_DIR,
         OUTPUTS_DIR,
         OUTPUTS_RUNS_DIR,

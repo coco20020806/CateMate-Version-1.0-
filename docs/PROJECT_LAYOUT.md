@@ -1,6 +1,6 @@
 # CateMate 项目目录结构
 
-更新时间：2026-07-15
+更新时间：2026-07-16
 
 本文档描述本地工作区的**推荐目录约定**。带 🔒 的目录已被 `.gitignore` 排除，不会进入公开 GitHub。
 
@@ -10,24 +10,22 @@
 
 ```text
 CateMate/
-├── app/                      # Streamlit 交互层
-├── catemate/                 # 核心业务代码（Agent 流水线）
-├── config/                   # 流水线配置（case、v2 模块、预处理规则）
-├── data_modules/             # 新一代可执行数据模块（v3）
-├── docs/                     # 设计文档与架构说明
-├── examples/                 # 可公开的虚构 demo 数据
-├── scripts/                  # CLI 入口脚本
-├── tests/                    # 单测（含 data_modules 测试）
+├── app/                          # Streamlit 交互层
+├── catemate/                     # Agent 内核（V1 + V2）
+├── config/                       # 流水线配置
+├── data_modules/                 # V2 可执行数据模块
+├── docs/                         # 设计文档
+├── examples/                     # 公开 demo 数据
+├── scripts/                      # CLI 入口
+├── tests/                        # 单测
 │
-├── CateMate_rawdata/    🔒   # 原始 Excel（公司下载）
-├── CateMate_processeddata/ 🔒 # 预处理 CSV（AI 读取层）
-├── outputs/             🔒   # 流水线运行产物
-├── _local/              🔒   # 本机私有笔记 / PPT / 草稿
+├── CateMate_rawdata/        🔒   # 原始 Excel（category/shop/item）
+├── CateMate_processeddata/  🔒   # 预处理 CSV
+├── outputs/                 🔒   # 流水线产物
+├── _local/                  🔒   # 本机私有笔记 / PPT
 │
-├── README.md                 # GitHub 首页（含架构图）
-├── README_使用说明.md
+├── README.md                     # GitHub 首页
 ├── requirements.txt
-├── .env.example
 └── LICENSE
 ```
 
@@ -39,40 +37,38 @@ CateMate/
 
 | 文件 | 作用 |
 |------|------|
-| `streamlit_app.py` / `streamlit_dashboard.py` | V1 总控台入口 |
-| `confirmation_editor.py` | 确认 Workbook 编辑 |
-| `clarification_editor.py` | 需求澄清编辑 |
-| `pipeline_runtime.py` | 读取 manifest、驱动流水线状态 |
+| `streamlit_dashboard.py` | 总控台；默认 `v2_solve_loop` |
+| `category_confirmation_editor.py` | Gate A0：类目定位确认 |
+| `clarification_editor.py` | Gate A1/A2：业务澄清 + rawdata 路径澄清 |
+| `confirmation_editor.py` | V1 Gate B：确认 Workbook 编辑 |
+| `pipeline_runtime.py` | 子进程调用 CLI |
 
 ### `catemate/` — Agent 内核
 
 ```text
 catemate/
-  understanding/       需求理解层（Gate A 澄清）
-  module_selection/    数据模块选择层
-  planning/            确定性规划层
-  case_generation/     Case config 生成
-  modules/             确认 Workbook 构建
-  ppt_ready/           PPT-ready + HTML 预览
-  pipeline/            Manifest 与 run 编排
+  understanding/       需求理解、类目确认、concept pack、Sub-L3 检测
+  case_generation/     自然语言 → Case Config
+  orchestration/       V2 意图编排 + Solve Loop（blueprint / plan / verify）
+  scope/               V2 取数层（loader / filters / related → ScopedFrame）
+  execution/           V2 执行层（遍历 AnalysisPlan → module compute）
+  modules/             Workbook 组装（含 data_workbook.py）
+  pipeline/            runner.py、v2_runner.py、manifest.py
+  module_selection/    V1 数据模块选择
+  planning/            V1 确定性 / AI 规划
+  ppt_ready/           HTML / PPT-ready（含 build_from_data_workbook.py）
+  data/                rawdata catalog、ingest、loader、类目树
   core/                路径、确认门禁
-  data/                源数据扫描、类目树
   ai/                  LLM 客户端
   schemas/             Pydantic 结构定义
-  config/              Case config 加载
 ```
 
-### `scripts/` — 命令行入口
+### V1 vs V2 代码分工
 
-常用脚本：
-
-| 脚本 | 用途 |
-|------|------|
-| `run_natural_language_requirement_pipeline.py` | 一键完整链路 |
-| `run_category_requirement_case.py` | 从 case YAML 生成需求 Workbook |
-| `preprocess_raw_data_sources.py` | Raw Excel → processed CSV |
-| `build_ppt_ready_from_confirmed_workbook.py` | 确认后生成 PPT-ready |
-| `check_confirmation_gate.py` | 确认门禁检查 |
+| 链路 | 关键包 | 主交付物 |
+|------|--------|----------|
+| **V2（默认）** | `orchestration/` + `scope/` + `execution/` + `data_modules/` | `data_workbook_*.xlsx` |
+| **V1（兼容）** | `module_selection/` + `planning/` + `config/data_modules/` | 确认 Workbook → PPT-ready |
 
 ---
 
@@ -82,36 +78,34 @@ catemate/
 
 ```text
 config/
-  cases/                  真实业务 case（🔒 具体 yaml 被 gitignore）
-  data_modules/           v2 扁平模块 YAML（当前流水线使用）
-  modules/                分析模块配置
-  processed_data_sources.yaml   Raw → processed 抽取规则
+  rawdata_catalog.yaml          # V2：源表登记（grain / status）
+  analysis_playbook.md          # V2：报告蓝图章节顺序
+  processed_data_sources.yaml   # Raw Excel → processed CSV
+  data_modules/                 # V1 扁平模块 YAML
+  cases/                        # 本地 case（yaml 🔒）
+  modules/                      # 分析模块配置
 ```
 
-### `data_modules/` — v3 可执行模块（新）
-
-与 `config/data_modules/` 并存，面向**目录化、可测试**的模块实现：
+### `data_modules/` — V2 可执行模块
 
 ```text
 data_modules/
-  AUTHORING_SPEC.md           模块写作规范
-  monthly_market_trend/         示例模块（contract + compute.py）
-  monthly_market_trend_review.md
+  AUTHORING_SPEC.md             模块写作规范
+  MODULE_INTAKE_TEMPLATE.md     用户录入模板
+  patterns/                     可复用 pattern 说明
+  monthly_market_trend/         试点：月度一指标一表
+  daily_cncb_performance/
+  price_tier_distribution/
+  top_shop/
+  top_listing/
+  top_sku_info/
+  keywords/
 ```
 
 | 代际 | 位置 | 特点 |
 |------|------|------|
-| **v2** | `config/data_modules/*.yaml` | 扁平 YAML，当前主链路 module selection 使用 |
-| **v3** | `data_modules/<id>/` | 目录化 + Python compute + pytest |
-
-### `examples/` — 公开演示
-
-```text
-examples/
-  cases/demo_stationery_sg.yaml
-  processed_data/             合成 CSV + manifest
-  bootstrap_demo_data.ps1       复制到 CateMate_processeddata/
-```
+| **V1 YAML** | `config/data_modules/*.yaml` | 扁平说明书，module_selection 使用 |
+| **V2 可执行** | `data_modules/<id>/` | `source_schema` + `compute.py` + pytest |
 
 ---
 
@@ -119,77 +113,55 @@ examples/
 
 ### `CateMate_rawdata/`
 
-放置从内部看板下载的 **原始 Excel**。不进 Git。
+```text
+CateMate_rawdata/
+  category/          类目维度 Excel
+  shop/              店铺维度（用户补充）
+  item/              商品维度 / L3 文件夹 CSV
+  category_tree_en.json
+```
+
+登记在 `config/rawdata_catalog.yaml`，缺表时通过澄清流贴路径 → `scripts/ingest_rawdata_from_path.py`。
 
 ### `CateMate_processeddata/`
-
-由预处理脚本生成的 **processed CSV**，AI 运行时优先读取：
 
 ```text
 CateMate_processeddata/
   sph_category_tree_lookup.csv
-  source_tables/
-    rm_raw_data.csv
-    dashboard_history.csv
-    ...
-  processed_manifest.yaml       数据血缘 manifest
-```
-
-生成命令：
-
-```powershell
-python scripts/preprocess_raw_data_sources.py
-```
-
-无真实 Excel 时，用演示数据：
-
-```powershell
-.\examples\bootstrap_demo_data.ps1
+  source_tables/*.csv
+  processed_manifest.yaml
 ```
 
 ---
 
 ## 产出层 🔒
 
-### `outputs/`
-
-所有流水线产物，按 run 隔离：
-
 ```text
 outputs/
-  runs/<case_id>_<timestamp>/    单次 run 的全套 JSON / xlsx / html
-  _legacy/                        历史归档
-  _cleanup_inventory.json         清理盘点（脚本生成）
-  README.md
-```
-
-> 旧版根目录 `runs/` 已废弃，统一使用 `outputs/runs/`。
-
----
-
-## 本机私有区 🔒
-
-### `_local/`
-
-仅本机使用的材料，不进 Git：
-
-```text
-_local/
-  notes/              产品构想、个人笔记
-  private_assets/     参考 PPT、截图
-  README.md
+  runs/<case_id>_<timestamp>/
+    pipeline_manifest_*.json
+    requirement_understanding_*.json
+    report_blueprint_*.json       # V2
+    analysis_plan_*.json          # V2
+    solve_verdict_*.json          # V2
+    data_workbook_*.xlsx          # V2 主交付
+    planning_spec_*.json          # V1
+    ppt_ready_workbook_*.xlsx     # V1
+  _legacy/
 ```
 
 ---
 
-## 已清理的遗留目录
+## 关键脚本
 
-| 原目录 | 处理 |
-|--------|------|
-| `example/` | 已删除；PPT 移至 `_local/private_assets/` |
-| `processed/` | 已删除；与 `CateMate_processeddata/` 重复 |
-| `runs/`（根目录） | 已删除；空目录，现用 `outputs/runs/` |
-| `CateMate_新产品构想.md`（根目录） | 已移至 `_local/notes/` |
+| 脚本 | 用途 |
+|------|------|
+| `run_natural_language_requirement_pipeline.py` | 主入口（支持 v2_solve_loop / module_selection） |
+| `verify_v2_solve_loop.py` | V2 solve loop 离线验证 |
+| `run_scope_and_compute.py` | Scope + compute 独立运行 |
+| `ingest_rawdata_from_path.py` | 用户贴路径 → rawdata 入库 |
+| `build_data_workbook.py` | Data Workbook 构建 |
+| `preprocess_raw_data_sources.py` | Raw → processed |
 
 ---
 
@@ -197,19 +169,21 @@ _local/
 
 ```text
 tests/
-  data_modules/monthly_market_trend/test_compute.py
-  fixtures/data_modules/...
+  data_modules/           各 module compute 单测
+  catemate/orchestration/ solve loop 单测
+  catemate/scope/         取数 / related 单测
+  fixtures/
 ```
 
 ```powershell
-pytest tests/data_modules/
+pytest tests/
 ```
 
 ---
 
 ## 相关文档
 
-- 架构设计：[CATEMATE_V1_DESIGN_OVERVIEW.md](CATEMATE_V1_DESIGN_OVERVIEW.md)
+- V2 设计：[CATEMATE_V2_DESIGN_OVERVIEW.md](CATEMATE_V2_DESIGN_OVERVIEW.md)
+- V1 设计：[CATEMATE_V1_DESIGN_OVERVIEW.md](CATEMATE_V1_DESIGN_OVERVIEW.md)
 - Agent 导航：[AI_CORE_INDEX.md](AI_CORE_INDEX.md)
-- 开源清单：[OPEN_SOURCE_CHECKLIST.md](OPEN_SOURCE_CHECKLIST.md)
-- v3 模块规范：[../data_modules/AUTHORING_SPEC.md](../data_modules/AUTHORING_SPEC.md)
+- 模块规范：[../data_modules/AUTHORING_SPEC.md](../data_modules/AUTHORING_SPEC.md)

@@ -60,6 +60,23 @@ def _result_from_subprocess(
     )
 
 
+def run_pipeline_continue_after_category_confirmation_subprocess(manifest_path: Path):
+    """Resume pipeline after category confirmation in a fresh subprocess."""
+    manifest_path = Path(manifest_path)
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(PIPELINE_CLI_SCRIPT),
+            "--continue-after-category-confirmation",
+            str(manifest_path),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(PROJECT_ROOT),
+    )
+    return _result_from_subprocess(proc=proc, manifest_path=manifest_path)
+
+
 def run_pipeline_continue_from_manifest_subprocess(manifest_path: Path):
     """Resume pipeline in a fresh Python process (immune to Streamlit sys.modules cache)."""
     manifest_path = Path(manifest_path)

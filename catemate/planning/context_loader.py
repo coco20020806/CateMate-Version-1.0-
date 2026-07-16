@@ -10,6 +10,7 @@ from catemate.core.paths import CONFIG_DIR, PROCESSED_DATA_DIR
 
 DEFAULT_MANIFEST_PATH = PROCESSED_DATA_DIR / "processed_manifest.yaml"
 DEFAULT_DATA_MODULES_DIR = CONFIG_DIR / "data_modules"
+V2_DATA_MODULES_DIR = Path(__file__).resolve().parents[2] / "data_modules"
 
 
 def _load_yaml(path: Path) -> Any:
@@ -86,6 +87,7 @@ def build_planning_context(
     case_config = load_case_config(case_config_path)
     manifesto = load_processed_manifest(manifest_path)
     modules = load_data_module_configs(data_modules_dir, active_only=True)
+    v2_modules = summarize_v2_modules_for_planning()
 
     return {
         "case_config_path": str(case_config_path),
@@ -94,6 +96,7 @@ def build_planning_context(
         "case_config": _summarize_case_config(case_config),
         "processed_tables": _summarize_manifest_tables(manifesto),
         "data_modules": [_summarize_data_module(module) for module in modules],
+        "v2_data_modules": v2_modules,
         "manifest_meta": {
             "generated_at": manifesto.get("generated_at", ""),
             "table_count": len(manifesto.get("tables") or []),
@@ -271,3 +274,31 @@ def _summarize_data_module(module: dict[str, Any]) -> dict[str, Any]:
         summary["preferred_over"] = preferred_over
 
     return summary
+
+
+def load_v2_data_module_contracts(directory: Path | None = None) -> list[dict[str, Any]]:
+    """Load V2 Python module contracts from data_modules/<id>/contract.yaml."""
+    root = directory or V2_DATA_MODULES_DIR
+    if not root.exists():
+        return []
+    modules: list[dict[str, Any]] = []
+    for contract_path in sorted(root.glob("*/contract.yaml")):
+        payload = _load_yaml(contract_path)
+        if isinstance(payload, dict):
+            module = dict(payload)
+            module["_config_path"] = str(contract_path)
+            modules.append(module)
+    return modules
+
+
+def summarize_v2_modules_for_planning(directory: Path | None = None) -> list[dict[str, Any]]:
+    return [
+        {
+            "module_id": m.get("module_id", ""),
+            "module_name": m.get("module_name", ""),
+            "module_type": m.get("module_type", ""),
+            "description": (m.get("business_purpose") or {}).get("description", ""),
+            "typical_questions": (m.get("business_purpose") or {}).get("typical_questions") or [],
+        }
+        for m in load_v2_data_module_contracts(directory)
+    ]

@@ -9,6 +9,7 @@ from catemate.understanding.clarification import SKIPPED_ANSWER, normalize_clari
 from catemate.understanding.generator import _validate_spec
 from catemate.understanding.prompt_builder import build_requirement_understanding_messages
 from catemate.understanding.readiness import normalize_understanding_readiness
+from catemate.understanding.site_normalizer import normalize_target_sites
 from catemate.understanding.schemas import RequirementUnderstandingSpec, UserAnswer
 
 
@@ -57,6 +58,7 @@ def merge_clarification_answers_into_understanding(
     updated = _validate_spec(payload, original_request=spec.original_request)
     updated = _preserve_clarification_records(spec, updated)
     updated = normalize_clarifying_question_ids(updated)
+    updated = normalize_target_sites(updated)
     return normalize_understanding_readiness(updated)
 
 

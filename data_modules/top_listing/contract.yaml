@@ -1,0 +1,27 @@
+schema_version: data_module_v3
+module_id: top_listing
+module_name: Top Listing 商品样本
+module_type: listing
+status: active
+owner: CateMate
+last_updated: "2026-07-15"
+
+source_schema_ref: source_schema.yaml
+
+source_bindings:
+  allowed_grains: [item]
+  by_grain:
+    item:
+      default_table_id: item_l3_category_csv
+      candidates: [item_l3_category_csv]
+      loader: category_folder
+      requires_scope: [category_l1, category_l2, category_l3]
+
+replaces:
+  - dashboard_top_listing
+
+outputs:
+  primary:
+    - table_id: top_listing_ranking
+      grain: [item_name]
+      top_n: 20

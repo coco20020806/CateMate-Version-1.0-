@@ -11,7 +11,7 @@ from typing import Any
 from catemate.core.paths import ARCHIVE_DIR_NAMES
 
 
-PIPELINE_VERSION = "v1"
+PIPELINE_VERSION = "v2"
 MANIFEST_GLOB = "pipeline_manifest_*.json"
 
 
@@ -32,6 +32,11 @@ class PipelineManifest:
     requirement_workbook_path: str | None = None
     ppt_ready_workbook_path: str | None = None
     html_preview_path: str | None = None
+    report_blueprint_path: str | None = None
+    analysis_plan_path: str | None = None
+    solve_loop_state_path: str | None = None
+    solve_verdict_path: str | None = None
+    data_workbook_path: str | None = None
     created_at: str = ""
     pipeline_version: str = PIPELINE_VERSION
     status: str = "in_progress"
@@ -67,13 +72,18 @@ class PipelineManifest:
             "requirement_workbook_path",
             "ppt_ready_workbook_path",
             "html_preview_path",
+            "report_blueprint_path",
+            "analysis_plan_path",
+            "solve_loop_state_path",
+            "solve_verdict_path",
+            "data_workbook_path",
             "created_at",
             "pipeline_version",
             "status",
             "error_step",
             "error_message",
         }
-        kwargs = {key: data.get(key) for key in known if key in data}
+        kwargs = {key: data.get(key) for key in known}
         extra = {key: value for key, value in data.items() if key not in known}
         return cls(extra=extra, **kwargs)
 
@@ -161,6 +171,11 @@ def update_and_save_manifest(
     requirement_workbook_path: Path | None = None,
     ppt_ready_workbook_path: Path | None = None,
     html_preview_path: Path | None = None,
+    report_blueprint_path: Path | None = None,
+    analysis_plan_path: Path | None = None,
+    solve_loop_state_path: Path | None = None,
+    solve_verdict_path: Path | None = None,
+    data_workbook_path: Path | None = None,
     status: str = "in_progress",
     error_step: str | None = None,
     error_message: str | None = None,
@@ -203,6 +218,21 @@ def update_and_save_manifest(
         html_preview_path=path_for_manifest(html_preview_path)
         if html_preview_path is not None
         else (existing.html_preview_path if existing else None),
+        report_blueprint_path=path_for_manifest(report_blueprint_path)
+        if report_blueprint_path is not None
+        else (getattr(existing, "report_blueprint_path", None) if existing else None),
+        analysis_plan_path=path_for_manifest(analysis_plan_path)
+        if analysis_plan_path is not None
+        else (getattr(existing, "analysis_plan_path", None) if existing else None),
+        solve_loop_state_path=path_for_manifest(solve_loop_state_path)
+        if solve_loop_state_path is not None
+        else (getattr(existing, "solve_loop_state_path", None) if existing else None),
+        solve_verdict_path=path_for_manifest(solve_verdict_path)
+        if solve_verdict_path is not None
+        else (getattr(existing, "solve_verdict_path", None) if existing else None),
+        data_workbook_path=path_for_manifest(data_workbook_path)
+        if data_workbook_path is not None
+        else (getattr(existing, "data_workbook_path", None) if existing else None),
         created_at=created,
         pipeline_version=PIPELINE_VERSION,
         status=status,

@@ -1,0 +1,25 @@
+schema_version: data_module_v3
+module_id: price_tier_distribution
+module_name: 价格段分布
+module_type: price_tier
+status: active
+owner: CateMate
+last_updated: "2026-07-15"
+
+source_schema_ref: source_schema.yaml
+
+source_bindings:
+  allowed_grains: [category]
+  by_grain:
+    category:
+      default_table_id: dashboard_price_tier
+      candidates: [dashboard_price_tier]
+      loader: flat_workbook
+
+replaces:
+  - dashboard_price_tier_distribution
+
+outputs:
+  primary:
+    - table_id: price_tier_by_site
+      grain: [Price_Range_USD, grass_region]
