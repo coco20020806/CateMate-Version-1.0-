@@ -73,10 +73,10 @@ def test_catalog_checker_blocks_item_without_category_path() -> None:
         runs=[
             PlanRun(
                 run_id="r1",
-                section_id="s_top_listing",
+                section_id="s_top_sku",
                 grain="item",
-                module_id="top_listing",
-                metric_id="gmv",
+                module_id="top_sku_info",
+                metric_id="orders",
                 table_id="item_l3_category_csv",
                 required_catalog="item/item_l3_category_csv",
             )
@@ -84,7 +84,7 @@ def test_catalog_checker_blocks_item_without_category_path() -> None:
     )
     updated_plan, questions = check_plan_catalog_readiness(plan)
     assert updated_plan.runs[0].status == "blocked_until_rawdata"
-    assert any("类目映射" in question.question for question in questions)
+    assert any("类目" in question.question for question in questions)
 
 
 def test_execute_scope_item_grain_loads_csv() -> None:

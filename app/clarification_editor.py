@@ -8,6 +8,7 @@ from typing import Callable
 
 import streamlit as st
 
+from catemate.orchestration.derived_tables import is_comparison_table_id
 from catemate.pipeline.manifest import PipelineManifest, update_and_save_manifest
 from catemate.understanding.clarification import (
     SKIPPED_ANSWER,
@@ -54,6 +55,18 @@ def render_clarification_editor(
         q for q in pending if q.question_category == QuestionCategory.CLARIFY_BUSINESS
     ]
     rawdata_pending = [q for q in pending if q.question_category == QuestionCategory.RAWDATA]
+    missing_rawdata_pending = [
+        q
+        for q in rawdata_pending
+        if q.clarification_kind != "plan_config"
+        and not is_comparison_table_id(q.rawdata_table_id)
+    ]
+    plan_config_pending = [
+        q
+        for q in rawdata_pending
+        if q.clarification_kind == "plan_config"
+        or is_comparison_table_id(q.rawdata_table_id)
+    ]
 
     if business_pending:
         st.markdown("#### 业务澄清")
@@ -66,9 +79,9 @@ def render_clarification_editor(
             on_clarification_complete=on_clarification_complete,
         )
 
-    if rawdata_pending:
+    if missing_rawdata_pending:
         st.markdown("#### 数据补充（请粘贴文件完整路径）")
-    for question in rawdata_pending:
+    for question in missing_rawdata_pending:
         _render_question_editor(
             question,
             understanding_spec_path=understanding_spec_path,
@@ -76,6 +89,17 @@ def render_clarification_editor(
             manifest_path=manifest_path,
             on_clarification_complete=on_clarification_complete,
             is_file_path=True,
+        )
+
+    if plan_config_pending:
+        st.markdown("#### 计划配置问题（无法通过上传文件解决）")
+    for question in plan_config_pending:
+        _render_plan_config_question(
+            question,
+            understanding_spec_path=understanding_spec_path,
+            manifest=manifest,
+            manifest_path=manifest_path,
+            on_clarification_complete=on_clarification_complete,
         )
 
     if is_clarification_complete(spec):
@@ -155,6 +179,35 @@ def _render_question_editor(
                     st.rerun()
                 except Exception as exc:
                     st.error(f"跳过失败：{exc}")
+
+
+def _render_plan_config_question(
+    question,
+    *,
+    understanding_spec_path: Path,
+    manifest: PipelineManifest,
+    manifest_path: Path,
+    on_clarification_complete,
+) -> None:
+    with st.container(border=True):
+        st.markdown(f"**{question.question}**")
+        if question.reason:
+            st.caption(question.reason)
+        st.caption("此为计划配置问题，无法通过上传 Excel 解决；请调整蓝图/计划或选择跳过该章节。")
+        if st.button("跳过", key=f"clarify_skip_plan::{question.question_id}"):
+            try:
+                spec = load_understanding_spec(understanding_spec_path)
+                spec = apply_clarification_answer(
+                    spec,
+                    question.question_id,
+                    skipped=True,
+                )
+                save_understanding_spec(spec, understanding_spec_path)
+                if on_clarification_complete is not None:
+                    on_clarification_complete(spec)
+                st.rerun()
+            except Exception as exc:
+                st.error(f"跳过失败：{exc}")
 
 
 def mark_clarification_completed(manifest: PipelineManifest, manifest_path: Path) -> None:

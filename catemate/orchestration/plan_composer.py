@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from catemate.orchestration.derived_tables import comparison_table_id
 from catemate.orchestration.module_source_bindings import resolve_table_id
-from catemate.orchestration.schemas import AnalysisPlan, PlanRun, ReportBlueprint
+from catemate.orchestration.schemas import AnalysisPlan, PlanRun, ReportBlueprint, ScopeKind
 from catemate.understanding.schemas import InferredCategoryCandidate, RequirementUnderstandingSpec
 
 _SECTION_MODULE_MAP = {
@@ -11,6 +12,8 @@ _SECTION_MODULE_MAP = {
     "s_orders_trend": ("monthly_market_trend", "orders", "category"),
     "s_top_sku": ("top_sku_info", "orders", "item"),
 }
+
+_SCOPE_ORDER = {"subset": 0, "parent_l3": 1, "standard": 2, "comparison": 3}
 
 
 def compose_analysis_plan(
@@ -42,42 +45,31 @@ def compose_analysis_plan(
             if section.module_id and section.metric_id and section.grain:
                 module_id = section.module_id
                 metric = section.metric_id
-                grain = section.grain  # type: ignore[assignment]
             elif mapping := _SECTION_MODULE_MAP.get(section.section_id):
-                module_id, metric, grain = mapping
+                module_id, metric, _ = mapping
             else:
                 metric = section.expected_shape.metrics[0] if section.expected_shape.metrics else "gmv"
                 module_id = "monthly_market_trend"
-                grain = "category"
 
-            table_id = resolve_table_id(
+            scope_kind = _resolve_scope_kind(section, understanding, module_id)
+            grain, table_id, related_pack, related_min_score = _resolve_scope_binding(
+                scope_kind,
                 module_id,
-                grain,
-                category_path=category_path if grain == "item" else None,
+                understanding,
+                candidate,
+                category_path,
+                metric,
             )
+            source_kind = "computed" if scope_kind == "comparison" else "rawdata"
 
             scope_parts = [
                 ", ".join(sites) if sites else "ALL",
                 category_label,
             ]
-            if section.section_id == "s_top_sku":
-                sub_label = (
-                    understood.sub_l3_concept.display_name
-                    or (
-                        understood.related_concept_pack.display_name
-                        if understood.related_concept_pack
-                        else ""
-                    )
-                )
-                if sub_label:
-                    scope_parts.append(sub_label)
+            sub_label = _subset_display_label(understood)
+            if scope_kind == "subset" and sub_label:
+                scope_parts.append(sub_label)
             scope_label = " / ".join(part for part in scope_parts if part)
-
-            related_pack = None
-            related_min_score = 0.55
-            if _should_attach_related_pack(understood, candidate):
-                related_pack = understood.related_concept_pack.model_dump()
-                related_min_score = understood.related_concept_pack.min_score
 
             suffix = f"_c{cat_index}" if len(candidates) > 1 else ""
             runs.append(
@@ -88,7 +80,7 @@ def compose_analysis_plan(
                     module_id=module_id,
                     metric_id=metric,
                     scope_label=scope_label,
-                    required_catalog=f"{grain}/{table_id}",
+                    required_catalog=f"{grain}/{table_id}" if table_id else f"{grain}/derived",
                     table_id=table_id,
                     target_sites=sites,
                     category_l1=category_l1,
@@ -96,9 +88,14 @@ def compose_analysis_plan(
                     category_l3=category_l3,
                     related_concept_pack=related_pack,
                     related_min_score=related_min_score,
+                    is_sub_category=scope_kind == "subset",
+                    scope_kind=scope_kind,
+                    source_kind=source_kind,
                 )
             )
 
+    _validate_plan_runs(runs)
+    runs.sort(key=lambda r: (_SCOPE_ORDER.get(r.scope_kind, 2), r.metric_id, r.run_id))
     return AnalysisPlan(goal=blueprint.goal, runs=runs, loop_iteration=blueprint.loop_iteration)
 
 
@@ -111,12 +108,116 @@ def _confirmed_candidates(understood) -> list[InferredCategoryCandidate]:
     return [InferredCategoryCandidate()]
 
 
-def _should_attach_related_pack(understood, candidate: InferredCategoryCandidate) -> bool:
-    if understood.related_concept_pack is None:
-        return False
-    if not understood.sub_l3_concept.is_sub_l3:
-        return False
-    parent_l3 = understood.sub_l3_concept.parent_l3.strip()
-    if parent_l3 and candidate.l3 and candidate.l3 != parent_l3:
-        return False
-    return True
+def _section_text(section) -> str:
+    return " ".join([section.section_id, section.title, section.sub_question]).lower()
+
+
+def _is_parent_section(section) -> bool:
+    text = _section_text(section)
+    return "parent" in text or "父级" in section.title or "父级" in section.sub_question
+
+
+def _is_comparison_section(section) -> bool:
+    text = _section_text(section)
+    markers = (" vs ", "_vs_", "share", "份额", "占比", "比例")
+    return any(marker in text for marker in markers)
+
+
+def _resolve_scope_kind(section, understanding: RequirementUnderstandingSpec, module_id: str) -> ScopeKind:
+    understood = understanding.understood
+    if _is_comparison_section(section):
+        return "comparison"
+    if _is_parent_section(section):
+        return "parent_l3"
+    if understood.sub_l3_concept.is_sub_l3 and understood.related_concept_pack is not None:
+        if module_id in {"monthly_market_trend", "top_sku_info"}:
+            return "subset"
+    return "standard"
+
+
+def _resolve_scope_binding(
+    scope_kind: ScopeKind,
+    module_id: str,
+    understanding: RequirementUnderstandingSpec,
+    candidate: InferredCategoryCandidate,
+    category_path: tuple[str, str, str],
+    metric: str,
+) -> tuple[str, str, dict | None, float]:
+    understood = understanding.understood
+    related_min_score = 0.55
+    if scope_kind == "subset":
+        if understood.related_concept_pack is None:
+            raise ValueError("subset scope requires related_concept_pack")
+        grain = "item"
+        table_id = resolve_table_id(
+            module_id,
+            grain,
+            category_path=category_path,
+        )
+        return grain, table_id, understood.related_concept_pack.model_dump(), related_min_score
+
+    if scope_kind == "parent_l3":
+        grain = "category"
+        table_id = resolve_table_id(module_id, grain)
+        return grain, table_id, None, related_min_score
+
+    if scope_kind == "comparison":
+        grain = "category"
+        table_id = comparison_table_id(metric)
+        return grain, table_id, None, related_min_score
+
+    grain = "item" if module_id == "top_sku_info" else "category"
+    table_id = resolve_table_id(
+        module_id,
+        grain,
+        category_path=category_path if grain == "item" else None,
+    )
+    related_pack = None
+    if (
+        understood.related_concept_pack is not None
+        and module_id == "top_sku_info"
+        and understood.sub_l3_concept.is_sub_l3
+    ):
+        related_pack = understood.related_concept_pack.model_dump()
+        related_min_score = understood.related_concept_pack.min_score
+    return grain, table_id, related_pack, related_min_score
+
+
+def _subset_display_label(understood) -> str:
+    return (
+        understood.sub_l3_concept.display_name
+        or (understood.related_concept_pack.display_name if understood.related_concept_pack else "")
+        or understood.target_category_text
+        or ""
+    )
+
+
+def _validate_plan_runs(runs: list[PlanRun]) -> None:
+    for run in runs:
+        if run.scope_kind == "subset":
+            if run.grain != "item":
+                raise ValueError(f"{run.run_id}: subset scope requires grain=item")
+            if run.related_concept_pack is None:
+                raise ValueError(f"{run.run_id}: subset scope requires related_concept_pack")
+            if not run.is_sub_category:
+                raise ValueError(f"{run.run_id}: subset scope requires is_sub_category=True")
+        if run.scope_kind == "parent_l3":
+            if run.grain != "category":
+                raise ValueError(f"{run.run_id}: parent_l3 scope requires grain=category")
+            if run.related_concept_pack is not None:
+                raise ValueError(f"{run.run_id}: parent_l3 scope must not attach related_concept_pack")
+            if run.is_sub_category:
+                raise ValueError(f"{run.run_id}: parent_l3 scope requires is_sub_category=False")
+        if run.scope_kind == "comparison":
+            metric_id = run.metric_id
+            has_subset = any(
+                item.scope_kind == "subset" and item.metric_id == metric_id for item in runs
+            )
+            has_parent = any(
+                item.scope_kind == "parent_l3" and item.metric_id == metric_id for item in runs
+            )
+            if not has_subset or not has_parent:
+                raise ValueError(
+                    f"{run.run_id}: comparison scope requires subset and parent_l3 runs "
+                    f"for metric_id={metric_id}"
+                )

@@ -28,7 +28,8 @@ BLUEPRINT_SYSTEM_PROMPT = """你是 CateMate 的报告蓝图设计师。
 11. expected_shape.metrics 必须包含该节的 metric_id。
 12. 用户说「最近」「近期」时，用 monthly_market_trend 的最新可用月份，不要规划日度章节。
 13. Sub-L3 或 related concept pack 场景应包含 top_sku_info 类章节。
-14. time_range 解释规则见 payload 中的 output_grain_policy。
+14. Sub-L3 的 monthly_market_trend 章节应对应 item 级 scope（由 plan_composer 最终绑定）；父级 L3 与对比章节应语义区分。
+15. time_range 解释规则见 payload 中的 output_grain_policy。
 """
 
 

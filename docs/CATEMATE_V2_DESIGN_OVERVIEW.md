@@ -1,8 +1,37 @@
 # CateMate V2 设计构想（迭代中）
 
-> **状态：迭代中（Living doc）** — 描述 V2 目标架构与已拍板方向；**主链路仍以 V1 可运行为准**，V2 资产逐步在 `data_modules/` 等处落地。  
-> 更新时间：2026-07-15  
+> **状态：迭代中（Living doc）** — 描述 V2 目标架构与已落地能力；**Streamlit 默认主链路为 `v2_solve_loop`**。  
+> 更新时间：2026-07-27（v1.2.0）  
 > V1 对照：[CATEMATE_V1_DESIGN_OVERVIEW.md](CATEMATE_V1_DESIGN_OVERVIEW.md)
+
+---
+
+## 核心设计思想：Data Agent 的模块化边界
+
+> **AI 负责「问什么 / 怎么编排」；写死的 Data Module + Scope 负责「算什么 / 算对」——用模块化边界换取 Agent 灵活性与数值正确率的平衡。**
+
+| 层 | 职责 | 典型载体 | LLM？ |
+|----|------|----------|-------|
+| **认知层** | 理解需求、确认类目、生成 Concept Pack / Blueprint、指标扩展、结论与可视化提案 | `understanding/`、`orchestration/blueprint_*`、`conclusion_brief/`、`html_report/` | 是（可 fallback） |
+| **契约层** | 限制 Agent 能调用的能力面；写死算数与列契约 | `data_modules/*/compute.py`、`source_schema.yaml`、`output_grain_policy.yaml`、active 白名单 | 否 |
+| **取数层** | 决定哪些行进入计算；Sub-L3 可审计过滤 | `scope/`、`if_related`、`subset_precompute`、`scope_kind` | 否（词表可由 LLM 生成，打分确定性） |
+
+```mermaid
+flowchart LR
+  subgraph flex [灵活性_LLM]
+    U[理解与澄清]
+    B[Blueprint编排]
+    C[消费层叙事]
+  end
+  subgraph correct [正确率_确定性]
+    S[Scope取数]
+    M[Module_compute]
+    W[Data_Workbook]
+  end
+  U --> B --> S --> M --> W --> C
+```
+
+这样设计的原因：纯 LLM data agent 容易「编数字」；纯规则系统又难覆盖自然语言分析意图。CateMate 把**意图编排**交给 LLM，把**数值正确性**钉在可测试的 Python 模块上。
 
 ---
 
@@ -14,7 +43,7 @@ V2 聚焦一个更硬的目标：
 
 > 如何把分析目标翻译成 **可编排、可缺数协商、可审计的 Data Workbook**——其中每一个数字都来自 **写死的 Python 模块**，而不是 Excel 公式或 LLM 即兴聚合？
 
-PPT / HTML 预览在 V2 中降为**消费层**（可后调）；**Data Workbook** 是主交付物。
+PPT / HTML / Conclusion Brief 在 V2 中是**消费层**（可后调）；**Data Workbook** 是主交付物。
 
 ---
 
@@ -24,66 +53,80 @@ PPT / HTML 预览在 V2 中降为**消费层**（可后调）；**Data Workbook*
 实际分析语义 = 取数方式（Scope）× 计算内核（Data Module）
 ```
 
-- **Scope（外部取数）**：决定哪些行进入计算——站点、时间、类目/店铺/商品过滤、数据源选择。  
+- **Scope（外部取数）**：决定哪些行进入计算——站点、时间、类目/店铺/商品过滤、Sub-L3 `if_related`、数据源选择。  
 - **Data Module（计算内核）**：只规定**源列名 + Python 聚合规则**；不在模块内写死「研究哪个品类」、不规定 Excel 从哪来。
 
-同一内核可被多次调用（不同 Scope、不同 `metric_id`），用于对照分析。
+同一内核可被多次调用（不同 `scope_kind`、不同 `metric_id`），用于对照分析：
+
+| scope_kind | 含义 |
+|------------|------|
+| `standard` | 普通 L3 / Top SKU |
+| `subset` | Sub-L3 精准子集（item + Concept Pack） |
+| `parent_l3` | 父级 L3 全量（category） |
+| `comparison` | 子集占父 L3 份额（派生表，非 catalog 源） |
 
 ---
 
 ## V2 与 V1 的关系
 
-| 维度 | V1（当前主链路） | V2（迭代方向） |
-|------|------------------|----------------|
+| 维度 | V1（兼容链路） | V2（默认主链路） |
+|------|----------------|------------------|
 | 模块形态 | `config/data_modules/*.yaml` 扁平说明书 | `data_modules/<id>/` 目录化 + `compute.py` |
 | 算数 | 通用 `chart_data_builder` groupby | 每模块写死 Python + 单测 |
 | 源数据 | `CateMate_rawdata/` 扁平 Excel | `rawdata/{category,shop,item}/` 分维度 |
-| 选能力 | 一次 module selection | **意图编排** loop：grain × module × metric |
+| 选能力 | 一次 module selection | **意图编排** Solve Loop：grain × module × metric × scope |
 | 缺数据 | workbook `missing_data_questions` | **澄清流扩展**：用户贴文件路径 → ingest |
-| 主输出 | PPT-ready + HTML | **Data Workbook**（表族）；图表为软参考 |
+| 主输出 | PPT-ready + HTML | **Data Workbook**；Brief / Visual Report / PPT 为消费层 |
 
 **原则：V1 流程骨架保留**（Streamlit、manifest、Gate A/B）；V2 替换的是 **B 面模块资产** 与 **数据供给 / 编排** 方式。
 
 ---
 
-## V2 端到端流水线（目标）
+## V2 端到端流水线（已落地）
 
 ```mermaid
 flowchart TB
   NL[自然语言目标]
 
-  subgraph gateA [Gate A · 澄清流扩展]
+  subgraph gateA [Gate A · 澄清]
     U[需求理解]
-    CL1[业务澄清：站点/类目/意图]
-    ORCH[意图编排：AnalysisPlan]
-    CHECK[rawdata catalog 就绪检查]
-    CL2[数据澄清：请贴文件路径]
-    INGEST[路径校验 → 入库 → 预处理]
-    CL1 --> ORCH --> CHECK
-    CHECK -->|缺源| CL2 --> INGEST --> CHECK
-    CHECK -->|齐或用户跳过| DONE_A[澄清完成]
+    CAT[类目确认]
+    READY[solve_loop_readiness]
+    CP[Concept Pack]
+    CL1[业务澄清]
+    CL2[rawdata 路径澄清]
+    U --> CAT --> READY --> CP --> CL1
   end
 
-  subgraph exec [确定性执行]
-    SCOPE[Scope 取数 · grain]
-    COMP[Data Module compute]
-    TR[transforms 延伸表]
-    WB[Data Workbook 组装]
+  subgraph pre [Sub-L3 预计算]
+    PRE[subset_precompute]
+    CACHE[ScopeCache + filter artifacts]
+    PRE --> CACHE
   end
 
-  subgraph gateB [Gate B · 可选]
-    CONF[人工确认 workbook]
+  subgraph solve [Solve Loop]
+    BP[ReportBlueprint]
+    PLAN[AnalysisPlan]
+    CHECK[catalog 检查]
+    EXEC[Scope + compute + comparison]
+    ADV[指标扩展]
+    VF[Solve Verifier]
+    BP --> PLAN --> CHECK --> EXEC --> ADV --> VF
   end
 
-  subgraph consume [消费层 · 可后调]
-    CHART[chart_presets / HTML / PPT]
+  subgraph deliver [交付]
+    WB[Data Workbook]
   end
 
-  NL --> U
-  U --> gateA
-  DONE_A --> SCOPE --> COMP --> TR --> WB
-  WB --> CONF
-  WB --> CHART
+  subgraph consume [消费层]
+    BRIEF[Conclusion Brief]
+    VR[Visual Report / HTML]
+  end
+
+  NL --> gateA --> pre --> solve --> WB
+  CHECK -->|缺源| CL2 --> CHECK
+  WB --> BRIEF
+  WB --> VR
 ```
 
 ### 跳出数据澄清 loop 的条件
@@ -97,60 +140,61 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-  subgraph ui [交互层 · 延续 V1]
+  subgraph ui [交互层]
     ST[Streamlit]
     CE[clarification_editor]
-    CF[confirmation_editor]
+    VE[visual_report_editor]
   end
 
   subgraph cognition [AI 认知层]
     UG[需求理解]
-    ORCH[意图编排器 Intent Orchestrator]
-    SEL[模块匹配 · 辅助]
+    ORCH[Solve Loop]
+    BRIEF[conclusion_brief]
+    VR[html_report]
   end
 
-  subgraph raw [源数据层 · V2]
+  subgraph raw [源数据层]
     CAT[(rawdata/category)]
     SHOP[(rawdata/shop)]
     ITEM[(rawdata/item)]
     CATALOG[rawdata_catalog]
   end
 
-  subgraph scope [取数层 · V2 新建]
+  subgraph scope [取数层]
+    PRE[subset_precompute]
     SC[Scope Executor]
     SF[ScopedFrame]
   end
 
-  subgraph modules [计算层 · V2]
+  subgraph modules [计算层]
     DM[data_modules/]
-    SS[source_schema.yaml]
-    CP[compute.py]
-    TF[transforms.py]
+    CMP[comparison_compute]
   end
 
   subgraph out [输出层]
     DWB[Data Workbook]
-    GAPS[Gaps / Plan 审计页]
+    GAPS[Gaps / Plan]
   end
 
   ST --> UG --> ORCH
   ORCH --> CATALOG
   CATALOG --> CAT & SHOP & ITEM
-  ORCH --> CE
-  CE -->|用户贴路径| CAT & SHOP & ITEM
-  ORCH --> SC --> SF --> CP --> TF --> DWB
-  DM --> SS & CP & TF
+  ORCH --> PRE --> SC --> SF --> DM --> DWB
+  DM --> CMP --> DWB
   DWB --> GAPS
-  CF --> DWB
+  DWB --> BRIEF
+  DWB --> VR --> VE
+  CE --> ORCH
 ```
 
 | 层级 | 职责 | V2 载体 |
 |------|------|---------|
-| **意图编排** | 目标 → `AnalysisPlan`（grain、module、metric、scope）；缺源则生成澄清题 | 新建 `catemate/orchestration/`（规划） |
-| **源数据 catalog** | 登记 category/shop/item 下表是否 available | `config/rawdata_catalog.yaml`（规划） |
-| **Scope** | 读 processed 表、filter、输出带**源列名**的 DataFrame | 平台级，与单 module 解耦 |
+| **意图编排** | 目标 → `AnalysisPlan`（grain、module、metric、scope_kind）；缺源则生成澄清题 | `catemate/orchestration/` |
+| **源数据 catalog** | 登记 category/shop/item 下表是否 available | `config/rawdata_catalog.yaml` |
+| **Scope** | 读表、filter、`if_related`、预计算缓存 | `catemate/scope/` |
 | **Data Module** | 源列契约 + 写死算数 + 延伸表族 | `data_modules/<module_id>/` |
-| **Data Workbook** | Plan + 各 `table_id` sheet + Gaps | 扩展现有 workbook 或新组装器 |
+| **Data Workbook** | Plan + 各 `table_id` sheet + Gaps | `catemate/modules/data_workbook.py` |
+| **消费层** | 结论简报、Visual Report Spec、HTML | `conclusion_brief/`、`html_report/` |
 
 ---
 
@@ -158,9 +202,9 @@ flowchart TB
 
 ```text
 CateMate_rawdata/
-  category/     # 类目维度表（当前主要已有）
-  shop/         # 店铺维度表（待用户补充）
-  item/         # 商品维度表（待用户补充）
+  category/     # 类目维度表
+  shop/         # 店铺维度表
+  item/         # 商品维度表
 ```
 
 每张表在 **rawdata catalog** 中登记：
@@ -171,6 +215,18 @@ CateMate_rawdata/
 用户通过 **澄清流** 粘贴本地文件路径 → 校验 → 复制/登记到对应子目录 → 预处理 → 更新 catalog。
 
 > **已拍板**：数据补充后由用户**贴回文件完整路径**；系统在澄清合并阶段触发 ingest，不依赖自动爬取。
+
+### Rawdata 路径约定（V2 solve loop）
+
+| grain | 物理路径 | 典型 table_id |
+|-------|----------|---------------|
+| category | `CateMate_rawdata/category/*.xlsx` | `dashboard_history`, `rm_raw_data` |
+| item | `CateMate_rawdata/item/{L1}/{L2}/{L3}/*.csv` | `item_l3_category_csv` |
+
+- V2 solve loop 对 `monthly_market_trend` 的 category/item run **禁止**回退到 `CateMate_processeddata` CSV。
+- `subset_l3_{metric}_share_by_site_month` 为 **comparison 派生表**，由 subset + parent primary 表计算，不是 catalog 源表。
+
+校验：`python scripts/validate_rawdata_catalog.py`
 
 ---
 
@@ -191,7 +247,7 @@ transforms.py         # 延伸表（登记即全量计算）
 | 必须写死 | 可后期调整 |
 |----------|------------|
 | `compute.py` / `transforms.py` | `chart_presets`（`binding: soft`） |
-| `source_schema` 列名与规则 | HTML / PPT 样式 |
+| `source_schema` 列名与规则 | HTML / PPT / Brief 文案样式 |
 | 输出表 schema | 消费层选哪张表展示 |
 
 ### 试点模块：`monthly_market_trend`
@@ -206,29 +262,34 @@ transforms.py         # 延伸表（登记即全量计算）
 
 ---
 
-## 意图编排：AnalysisPlan（概念）
+## 意图编排：AnalysisPlan
 
-编排器输出机器可读计划，示例：
+编排器输出机器可读计划，示例（Sub-L3）：
 
 ```yaml
-goal: VN 宠物类目月度 GMV 趋势 + 头部 shop 对比
+goal: PH 智能宠物碗趋势 + Top SKU
 runs:
   - run_id: r1
+    scope_kind: subset
+    grain: item
+    module_id: monthly_market_trend
+    metric_id: gmv
+    related_concept_pack: { ... }
+
+  - run_id: r2
+    scope_kind: parent_l3
     grain: category
     module_id: monthly_market_trend
     metric_id: gmv
-    scope_label: "VN / Pet Healthcare"
-    required_catalog: category/dashboard_history
 
-  - run_id: r2
-    grain: shop
+  - run_id: r3
+    scope_kind: comparison
     module_id: monthly_market_trend
     metric_id: gmv
-    status: blocked_until_rawdata
-    missing: shop/shop_monthly_sales
+    table_id: subset_l3_gmv_share_by_site_month
 ```
 
-同一 `monthly_market_trend` + 不同 `grain` = 不同 Scope，**不是**不同 module。
+同一 `monthly_market_trend` + 不同 `scope_kind` / `grain` = 不同 Scope，**不是**不同 module。
 
 ---
 
@@ -239,13 +300,13 @@ runs:
 | 阶段 | 问题类型 | 示例 |
 |------|----------|------|
 | 1a 业务 | `clarify_*` | 站点、类目、时间窗、分析目标 |
-| 1b 数据 | `rawdata_*` | 缺 shop 表时请粘贴文件完整路径；可跳过 |
+| 1b 数据 | `rawdata_*` | 缺 shop/item 表时请粘贴文件完整路径；可跳过 |
 
-实现触点（规划）：
+实现触点：
 
-- `catemate/understanding/schemas.py` — `expected_answer_type` 可增加 `FILE_PATH`
+- `catemate/understanding/schemas.py` — `FILE_PATH` / rawdata 字段
 - `app/clarification_editor.py` — 分区展示数据补充题
-- 澄清答案 handler — 路径 → ingest → `preprocess` → 刷新 catalog
+- 澄清答案 handler — 路径 → ingest → 刷新 catalog
 
 ---
 
@@ -254,7 +315,7 @@ runs:
 | Sheet / 区块 | 内容 |
 |--------------|------|
 | **Plan** | 目标、AnalysisPlan、已执行 / blocked 的 run |
-| **Data.\<table_id\>** | 各次 module 产出的主表与延伸表 |
+| **Data.\<table_id\>** | 各次 module 产出的主表、延伸表、comparison 表 |
 | **Gaps** | 缺源、用户跳过、partial 说明 |
 | **Confirmation** | 可选，延续 V1 Gate B |
 
@@ -266,23 +327,23 @@ runs:
 
 ```mermaid
 flowchart LR
-  A["A · 澄清 + 数据 loop<br/>业务 + 贴路径补源"]
-  B["B · 可执行模块目录<br/>data_modules/"]
-  C["C · 编排 + Workbook<br/>Plan → Scope → 表族"]
-  D["D · 画图消费<br/>chart_presets 软参考"]
+  A["A · 澄清 + 数据 loop"]
+  B["B · 可执行模块目录"]
+  C["C · 编排 + Workbook"]
+  D["D · Brief / HTML / PPT 消费"]
   A --> B --> C --> D
 ```
 
 | 面 | V1 | V2 |
 |----|----|----|
-| **A** | 问站点/类目 | + rawdata 就绪 loop、路径 ingest |
+| **A** | 问站点/类目 | + rawdata 就绪 loop、路径 ingest、Sub-L3 readiness |
 | **B** | YAML 说明书 | `source_schema` + Python + pytest |
-| **C** | adapter + generic builder | 编排器 + Scope + 模块表族 → Workbook |
-| **D** | default_charts 绑 chart_type | 绑 `output_table_id`，可覆盖 |
+| **C** | adapter + generic builder | Solve Loop + Scope + multi-scope 表族 → Workbook |
+| **D** | default_charts 绑 chart_type | Conclusion Brief + Visual Report Spec + HTML |
 
 ---
 
-## 实施路线（建议）
+## 实施路线
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
@@ -291,8 +352,10 @@ flowchart LR
 | **2** | Scope 执行器 + related / concept pack | ✅ 已落地 |
 | **3** | Solve Loop + `rawdata_*` 澄清 + 路径 ingest | ✅ 已落地 |
 | **4** | Data Workbook 组装（Plan / Data / Gaps） | ✅ 已落地 |
+| **4b** | Sub-L3 预计算 / ScopeCache / filter artifacts | ✅ 已落地（v1.2.0） |
+| **4c** | multi-scope comparison（subset vs parent） | ✅ 已落地（v1.2.0） |
 | **5** | 逐步用 V2 模块替换 V1 YAML 模块 | 🔄 进行中 |
-| **6** | PPT-ready / HTML 从 Data Workbook 消费 | 🔄 部分可用 |
+| **6** | Conclusion Brief + HTML Visual Report | ✅ 已落地（v1.2.0） |
 
 ---
 
@@ -300,12 +363,11 @@ flowchart LR
 
 | 文档 | 内容 |
 |------|------|
-| [CHANGELOG.md](../CHANGELOG.md) | 版本记录（当前 v1.1.0） |
-| [CATEMATE_V1_DESIGN_OVERVIEW.md](CATEMATE_V1_DESIGN_OVERVIEW.md) | 当前可运行架构 |
+| [CHANGELOG.md](../CHANGELOG.md) | 版本记录（当前 v1.2.0） |
+| [CATEMATE_V1_DESIGN_OVERVIEW.md](CATEMATE_V1_DESIGN_OVERVIEW.md) | V1 架构 |
 | [data_modules/AUTHORING_SPEC.md](../data_modules/AUTHORING_SPEC.md) | 模块写作指示 |
-| [data_modules/monthly_market_trend_review.md](../data_modules/monthly_market_trend_review.md) | 试点模块批注稿 |
 | [PROJECT_LAYOUT.md](PROJECT_LAYOUT.md) | 目录结构 |
-| [AI_CORE_INDEX.md](AI_CORE_INDEX.md) | Agent 导航 |
+| [AI_CORE_INDEX.md](AI_CORE_INDEX.md) | Agent 导航与 LLM 调用清单 |
 
 ---
 
@@ -313,5 +375,6 @@ flowchart LR
 
 | 日期 | 说明 |
 |------|------|
+| 2026-07-27 | **v1.2.0**：核心设计思想置顶；Sub-L3 预计算、multi-scope comparison、Conclusion Brief / HTML 消费层；端到端图与实施路线同步 |
 | 2026-07-16 | **v1.1.0**：solve loop 收束为 2 active 模块；新增 Sub-L3 / if_related / output_grain_policy；5 个模块降为 draft |
 | 2026-07-15 | 初稿：Scope×Module、三维度 rawdata、澄清 loop、共用 monthly_market_trend、Data Workbook |

@@ -73,6 +73,8 @@ def test_plan_composer_maps_top_sku_to_top_sku_info_module() -> None:
     assert run.module_id == "top_sku_info"
     assert run.grain == "item"
     assert run.table_id == "item_l3_category_csv"
+    assert run.is_sub_category is True
+    assert run.scope_kind == "subset"
     assert run.related_concept_pack is not None
     assert run.related_concept_pack["concept_id"] == "smart_pet_bowl"
     assert "智能宠物碗" in run.scope_label

@@ -41,7 +41,8 @@ def main() -> int:
     plan = compose_analysis_plan(blueprint, spec)
     plan, questions = check_plan_catalog_readiness(plan)
 
-    state = run_solve_loop(spec, max_iterations=1)
+    loop_result = run_solve_loop(spec, max_iterations=1)
+    state = loop_result.state
 
     summary = {
         "blueprint_sections": len(blueprint.sections),

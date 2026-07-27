@@ -61,7 +61,8 @@ def test_user_declined_rawdata_when_skipped() -> None:
 
 def test_solve_loop_exits_data_clarification_when_rawdata_skipped() -> None:
     spec = _spec_with_skipped_rawdata()
-    state = run_solve_loop(spec, max_iterations=1, user_declined_data=user_declined_rawdata(spec))
+    result = run_solve_loop(spec, max_iterations=1, user_declined_data=user_declined_rawdata(spec))
+    state = result.state
     assert state.phase == "done"
     assert state.verdict is not None
     assert state.verdict.verdict in {"partial", "solved"}

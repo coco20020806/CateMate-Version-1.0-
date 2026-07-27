@@ -66,6 +66,7 @@ from catemate.understanding.category_confirmation import (
 )
 from catemate.understanding.generator import RequirementUnderstandingGenerator
 from catemate.understanding.schemas import RequirementUnderstandingSpec, UnderstandingStatus
+from catemate.understanding.solve_loop_readiness import ensure_understanding_ready_for_solve_loop
 
 PlanningMode = Literal["ai_direct", "module_selection", "v2_solve_loop"]
 StopAfter = Literal["case_config", "understanding", "module_selection", "planning"] | None
@@ -439,6 +440,21 @@ def run_pipeline_continue_from_manifest(
     safe_case_id = safe_slug(manifest.case_id, timestamp=manifest.timestamp)
     output_dir = manifest_path.parent
 
+    if manifest.planning_mode == "v2_solve_loop":
+        try:
+            understanding_spec = ensure_understanding_ready_for_solve_loop(
+                understanding_spec,
+                ai_client=ai_client,
+            )
+            save_understanding_spec(understanding_spec, understanding_spec_path)
+        except Exception as exc:
+            return PipelineRunResult(
+                exit_code=1,
+                manifest_path=manifest_path,
+                manifest=manifest,
+                error_message=f"Failed to prepare understanding for solve loop: {exc}",
+            )
+
     return _continue_after_understanding(
         client=ai_client,
         manifest_path=manifest_path,
@@ -518,8 +534,10 @@ def run_pipeline_continue_after_category_confirmation(
         model = getattr(ai_client, "model", "") or manifest.model
 
     try:
-        if not understanding_spec.understood.inferred_category_candidates:
-            understanding_spec = finalize_after_category_confirmation(understanding_spec, ai_client=ai_client)
+        understanding_spec = ensure_understanding_ready_for_solve_loop(
+            understanding_spec,
+            ai_client=ai_client,
+        )
         save_understanding_spec(understanding_spec, understanding_spec_path)
     except Exception as exc:
         return PipelineRunResult(

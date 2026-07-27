@@ -49,6 +49,9 @@ scope_expectations:
     - 每次调用须指定 metric_id：gmv | orders | aov
     - gmv 调用须传入 gmv_usd；orders 须传入 orders；aov 须同时传入 gmv_usd 与 orders
     - 类目列缺失不阻塞；见 output metadata
+    - category grain 源文件须位于 CateMate_rawdata/category/*.xlsx（dashboard_history / rm_raw_data）
+    - item grain 源文件须位于 CateMate_rawdata/item/{L1}/{L2}/{L3}/*.csv
+    - V2 solve loop 禁止 processed CSV 回退；subset_l3_*_share_by_site_month 为派生对比表，不是 source_bindings 源表
 
 compute_params:
   metric_id:

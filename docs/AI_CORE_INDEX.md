@@ -1,36 +1,69 @@
 # CateMate AI 核心导航
 
-## V2 主链路（v1.1.0 · 2026-07-16）
+## V2 主链路（v1.2.0 · 2026-07-27）
 
 当前 **Streamlit 默认** `v2_solve_loop`；版本记录见 [`CHANGELOG.md`](../CHANGELOG.md)。
 
+**设计原则：** AI 负责「问什么 / 怎么编排」；写死的 Data Module + Scope 负责「算什么 / 算对」。详见 [`CATEMATE_V2_DESIGN_OVERVIEW.md`](CATEMATE_V2_DESIGN_OVERVIEW.md) 文首。
+
 必读：
 
-- **`docs/CATEMATE_V2_DESIGN_OVERVIEW.md`** — Scope×Module、Solve Loop、Data Workbook
+- **`docs/CATEMATE_V2_DESIGN_OVERVIEW.md`** — Scope×Module、Solve Loop、Data Workbook、消费层
 - **`config/analysis_playbook.md`** — 蓝图章节（仅 2 active 模块）
 - **`config/output_grain_policy.yaml`** — 月度输出策略 + enabled 模块白名单
 - **`data_modules/AUTHORING_SPEC.md`** — 可执行模块写作指示
 
 **Active 模块**（solve loop 唯一能力边界）：
 
-- `monthly_market_trend` — 月度 GMV / Orders / AOV
+- `monthly_market_trend` — 月度 GMV / Orders / AOV（含 subset / parent_l3 / comparison）
 - `top_sku_info` — Top SKU（配合 `scope/related.py` if_related 过滤）
 
 **Draft 模块**（有代码与单测，不参与编排）：`daily_cncb_performance`、`price_tier_distribution`、`top_shop`、`top_listing`、`keywords`
 
 校验：`python scripts/validate_v3_data_modules.py`
 
-Sub-L3 / if_related 关键代码：
+### Sub-L3 / Scope 关键代码
 
 - `catemate/understanding/sub_l3_detector.py`
 - `catemate/understanding/concept_pack_generator.py`
+- `catemate/understanding/solve_loop_readiness.py`
 - `catemate/scope/related.py`
+- `catemate/scope/subset_precompute.py`
+- `catemate/scope/scope_cache.py`
+- `catemate/scope/sub_l3_artifacts.py`
+- `catemate/orchestration/comparison_compute.py`
+- `catemate/orchestration/derived_tables.py`
+
+### 消费层关键代码
+
+- `catemate/conclusion_brief/` — 结论简报
+- `catemate/html_report/` — Visual Report Spec + HTML 渲染
+- `scripts/build_conclusion_brief_from_data_workbook.py`
+- `scripts/build_html_report_from_data_workbook.py`
+
+### LLM 调用清单（流水线顺序）
+
+| 顺序 | 步骤 | 模块入口 | 传入摘要 | 传出 |
+|------|------|----------|----------|------|
+| 1 | Case Config | `case_generation/generator.py` | request + 参考 case | `CategoryAnalysisCaseConfig` |
+| 2 | 需求理解 | `understanding/generator.py` | request + 模块摘要 + 类目树 | `RequirementUnderstandingSpec` |
+| 3 | 类目反馈（可选） | `understanding/category_confirmation.py` | previous_spec + feedback | 更新后的 spec |
+| 4 | 澄清合并（可选） | `understanding/clarification_merge.py` | previous_spec + answers | 更新 understood |
+| 5 | Concept Pack（Sub-L3） | `understanding/concept_pack_generator.py` | 需求 / parent_l3 / 站点 | `RelatedConceptPack` |
+| 6 | Report Blueprint | `orchestration/blueprint_generator.py` | requirement + catalog + playbook | `ReportBlueprint` |
+| 7 | 指标扩展（可选） | `orchestration/metric_advisor.py` | 已执行 / 可用指标 | `MetricRecommendation[]` |
+| 8 | Conclusion Brief | `conclusion_brief/generator.py` | workbook_digest + blueprint | `ConclusionBrief` |
+| 9 | Visual Report Spec | `html_report/proposal_generator.py` | digest + rule_bindings | `VisualReportSpec` |
+
+确定性步骤（无 LLM）：`compose_analysis_plan`、catalog check、`subset_precompute`、`execute_scope` / `if_related`、`data_modules` compute、`comparison_compute`、`solve_verifier`、HTML 渲染。
 
 ---
 
-## V1 Agent 启动顺序（2026-07-09）
+## V1 Agent 启动顺序（兼容链路 · 2026-07-09）
 
-后续 AI / agent / Cursor 接手 CateMate 时，先按下面顺序读取：
+> **默认请用上方 V2 主链路。** 以下仅在维护 `module_selection` / PPT-ready 兼容路径时使用。
+
+后续 AI / agent / Cursor 接手 CateMate V1 兼容链路时，可按下面顺序读取：
 
 1. `docs/V1_ACCEPTANCE_SUMMARY.md`
 2. `docs/PROJECT_STATUS.md`
@@ -38,7 +71,7 @@ Sub-L3 / if_related 关键代码：
 4. `config/data_modules/*.yaml`
 5. 与任务相关的设计文档
 
-当前推荐主链路：
+V1 兼容链路：
 
 ```text
 natural language request

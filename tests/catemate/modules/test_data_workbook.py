@@ -34,6 +34,10 @@ def test_build_data_workbook_spec() -> None:
                 section_id="s1",
                 module_id="monthly_market_trend",
                 metric_id="gmv",
+                grain="item",
+                table_id="item_l3_category_csv",
+                is_sub_category=True,
+                scope_kind="subset",
                 status="executable",
             )
         ],
@@ -47,4 +51,7 @@ def test_build_data_workbook_spec() -> None:
     )
     assert len(spec.blueprint_rows) == 1
     assert len(spec.plan_rows) == 1
+    assert spec.plan_rows[0].is_sub_category == 1
+    assert spec.plan_rows[0].scope_kind == "subset"
+    assert spec.plan_rows[0].table_id == "item_l3_category_csv"
     assert spec.verify_rows[0].verdict == "solved"

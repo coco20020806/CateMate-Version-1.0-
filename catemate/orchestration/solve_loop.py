@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,7 @@ from catemate.execution.result_collector import ExecutionResult
 from catemate.execution.runner import execute_analysis_plan_incremental
 from catemate.orchestration.blueprint_generator import build_report_blueprint
 from catemate.orchestration.catalog_checker import check_plan_catalog_readiness
+from catemate.orchestration.derived_tables import is_comparison_table_id, is_computed_scope
 from catemate.orchestration.metric_advisor import recommend_supplementary_metrics
 from catemate.orchestration.module_capability import (
     available_metrics_for_module,
@@ -23,9 +25,18 @@ from catemate.orchestration.solve_verifier import verify_solution
 from catemate.scope.concept_schemas import RelatedConceptPack
 from catemate.scope.executor import execute_scope
 from catemate.scope.schemas import ScopeSpec
+from catemate.scope.scope_cache import ScopeCache
+from catemate.scope.subset_precompute import precompute_subset_scopes
 from catemate.understanding.schemas import RequirementUnderstandingSpec
 
 MAX_METRIC_EXPANSIONS = 3
+
+
+@dataclass
+class SolveLoopRunResult:
+    state: SolveLoopState
+    execution: ExecutionResult | None = None
+    scope_cache: ScopeCache | None = None
 
 
 def run_solve_loop(
@@ -34,10 +45,30 @@ def run_solve_loop(
     max_iterations: int = 3,
     user_declined_data: bool = False,
     processed_data_dir: Path | None = None,
+    run_output_dir: Path | None = None,
+    scope_cache: ScopeCache | None = None,
     ai_client: CateMateAIClient | None = None,
-) -> SolveLoopState:
+) -> SolveLoopRunResult:
     state = SolveLoopState(max_iterations=max_iterations, user_declined_data=user_declined_data)
     adopted_recommendations: list[MetricRecommendation] = []
+    precompute = precompute_subset_scopes(
+        understanding,
+        run_output_dir=run_output_dir,
+        processed_data_dir=processed_data_dir,
+        scope_cache=scope_cache,
+    )
+    active_scope_cache = precompute.cache if precompute.cache.frames else scope_cache
+    state.metadata["subset_precompute"] = {
+        **precompute.cache.summary(),
+        "precomputed_this_run": precompute.precomputed,
+    }
+    if precompute.cache_dir is not None:
+        state.metadata["subset_scope_dir"] = str(precompute.cache_dir)
+    if precompute.artifact_paths is not None:
+        state.metadata["sub_l3_filter_spec_path"] = str(precompute.artifact_paths.filter_spec_path)
+        state.metadata["sub_l3_filter_rules_path"] = str(precompute.artifact_paths.filter_rules_path)
+
+    final_execution: ExecutionResult | None = None
 
     for iteration in range(1, max_iterations + 1):
         state.loop_iteration = iteration
@@ -59,7 +90,11 @@ def run_solve_loop(
 
         if rawdata_questions and not user_declined_data:
             state.phase = "data_clarification"
-            return state
+            return SolveLoopRunResult(
+                state=state,
+                execution=final_execution,
+                scope_cache=active_scope_cache,
+            )
 
         state.phase = "catalog_check"
         execution, executed_keys, adopted_recommendations, plan, blueprint = _run_metric_expansion_loop(
@@ -69,7 +104,9 @@ def run_solve_loop(
             processed_data_dir=processed_data_dir,
             ai_client=ai_client,
             adopted_recommendations=adopted_recommendations,
+            scope_cache=active_scope_cache,
         )
+        final_execution = execution
 
         state.plan = plan
         state.blueprint = blueprint
@@ -92,7 +129,11 @@ def run_solve_loop(
 
         if verdict.verdict in ("solved", "partial"):
             state.phase = "done"
-            return state
+            return SolveLoopRunResult(
+                state=state,
+                execution=final_execution,
+                scope_cache=active_scope_cache,
+            )
 
         if iteration >= max_iterations:
             state.phase = "done"
@@ -103,10 +144,18 @@ def run_solve_loop(
                     "notes": verdict.notes + ["达到最大迭代次数，以 partial 交付"],
                 }
             )
-            return state
+            return SolveLoopRunResult(
+                state=state,
+                execution=final_execution,
+                scope_cache=active_scope_cache,
+            )
 
     state.phase = "done"
-    return state
+    return SolveLoopRunResult(
+        state=state,
+        execution=final_execution,
+        scope_cache=active_scope_cache,
+    )
 
 
 def _run_metric_expansion_loop(
@@ -117,16 +166,22 @@ def _run_metric_expansion_loop(
     processed_data_dir: Path | None,
     ai_client: CateMateAIClient | None,
     adopted_recommendations: list[MetricRecommendation],
+    scope_cache: ScopeCache | None = None,
 ) -> tuple[ExecutionResult, set[str], list[MetricRecommendation], Any, Any]:
     execution = ExecutionResult()
     executed_keys: set[str] = set()
-    available_by_run = _available_metrics_by_run(plan, processed_data_dir=processed_data_dir)
+    available_by_run = _available_metrics_by_run(
+        plan,
+        processed_data_dir=processed_data_dir,
+        scope_cache=scope_cache,
+    )
 
     for expansion_round in range(MAX_METRIC_EXPANSIONS + 1):
         batch = execute_analysis_plan_incremental(
             plan,
             executed_keys,
             processed_data_dir=processed_data_dir,
+            scope_cache=scope_cache,
         )
         execution.merge(batch)
         for run in plan.runs:
@@ -146,16 +201,27 @@ def _run_metric_expansion_loop(
 
         adopted_recommendations.extend(recommendations)
         plan, blueprint = expand_plan_with_metrics(plan, blueprint, recommendations)
-        available_by_run = _available_metrics_by_run(plan, processed_data_dir=processed_data_dir)
+        available_by_run = _available_metrics_by_run(
+            plan,
+            processed_data_dir=processed_data_dir,
+            scope_cache=scope_cache,
+        )
 
     return execution, executed_keys, adopted_recommendations, plan, blueprint
 
 
-def _available_metrics_by_run(plan, *, processed_data_dir: Path | None) -> dict[str, list[str]]:
+def _available_metrics_by_run(
+    plan,
+    *,
+    processed_data_dir: Path | None,
+    scope_cache: ScopeCache | None = None,
+) -> dict[str, list[str]]:
     cache: dict[str, list[str]] = {}
     result: dict[str, list[str]] = {}
     for run in plan.runs:
         if run.status != "executable":
+            continue
+        if is_computed_scope(run.scope_kind) or is_comparison_table_id(run.table_id):
             continue
         scope_cache_key = "|".join(
             [
@@ -169,6 +235,10 @@ def _available_metrics_by_run(plan, *, processed_data_dir: Path | None) -> dict[
             ]
         )
         if scope_cache_key not in cache:
+            require_rawdata = (
+                getattr(run, "source_kind", "rawdata") != "computed"
+                and run.grain in {"category", "item"}
+            )
             frame = execute_scope(
                 ScopeSpec(
                     grain=run.grain,
@@ -186,6 +256,8 @@ def _available_metrics_by_run(plan, *, processed_data_dir: Path | None) -> dict[
                     related_min_score=run.related_min_score,
                 ),
                 processed_data_dir=processed_data_dir,
+                scope_cache=scope_cache,
+                require_rawdata=require_rawdata,
             )
             cache[scope_cache_key] = available_metrics_for_module(
                 run.module_id,

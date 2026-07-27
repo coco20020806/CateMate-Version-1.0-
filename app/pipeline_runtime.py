@@ -12,6 +12,8 @@ from catemate.pipeline.manifest import load_pipeline_manifest
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PIPELINE_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "run_natural_language_requirement_pipeline.py"
 PPT_READY_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "build_ppt_ready_from_confirmed_workbook.py"
+CONCLUSION_BRIEF_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "build_conclusion_brief_from_data_workbook.py"
+HTML_REPORT_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "build_html_report_from_data_workbook.py"
 
 PIPELINE_RUNTIME_MODULES = (
     "catemate.pipeline.runner",
@@ -178,3 +180,75 @@ def run_ppt_ready_subprocess(
 
     message = (proc.stderr or proc.stdout or "").strip() or "PPT-ready 生成失败。"
     return PptReadySubprocessResult(exit_code=proc.returncode or 1, error_message=message)
+
+
+@dataclass
+class ConclusionBriefSubprocessResult:
+    exit_code: int
+    case_id: str = ""
+    conclusion_brief_path: Path | None = None
+    conclusion_brief_json_path: Path | None = None
+    error_message: str = ""
+
+
+def run_conclusion_brief_subprocess(*, pipeline_manifest_path: Path) -> ConclusionBriefSubprocessResult:
+    """Generate conclusion brief from V2 Data Workbook in a fresh Python process."""
+    cmd = [
+        sys.executable,
+        str(CONCLUSION_BRIEF_CLI_SCRIPT),
+        "--pipeline-manifest",
+        str(pipeline_manifest_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+    values = _parse_kv_output(proc.stdout or "")
+    if proc.returncode == 0:
+        md_raw = values.get("conclusion_brief_md")
+        json_raw = values.get("conclusion_brief_json")
+        return ConclusionBriefSubprocessResult(
+            exit_code=0,
+            case_id=values.get("case_id", ""),
+            conclusion_brief_path=Path(md_raw) if md_raw else None,
+            conclusion_brief_json_path=Path(json_raw) if json_raw else None,
+        )
+
+    message = (proc.stderr or proc.stdout or "").strip() or "结论简报生成失败。"
+    return ConclusionBriefSubprocessResult(exit_code=proc.returncode or 1, error_message=message)
+
+
+@dataclass
+class VisualReportSubprocessResult:
+    exit_code: int
+    case_id: str = ""
+    visual_report_spec_path: Path | None = None
+    html_report_path: Path | None = None
+    error_message: str = ""
+
+
+def run_visual_report_subprocess(
+    *,
+    pipeline_manifest_path: Path,
+    mode: str = "propose",
+) -> VisualReportSubprocessResult:
+    """Generate visual report spec and/or HTML from V2 Data Workbook."""
+    cmd = [
+        sys.executable,
+        str(HTML_REPORT_CLI_SCRIPT),
+        "--pipeline-manifest",
+        str(pipeline_manifest_path),
+        "--mode",
+        mode,
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+    values = _parse_kv_output(proc.stdout or "")
+    if proc.returncode == 0:
+        spec_raw = values.get("visual_report_spec")
+        html_raw = values.get("html_report")
+        return VisualReportSubprocessResult(
+            exit_code=0,
+            case_id=values.get("case_id", ""),
+            visual_report_spec_path=Path(spec_raw) if spec_raw else None,
+            html_report_path=Path(html_raw) if html_raw else None,
+        )
+
+    message = (proc.stderr or proc.stdout or "").strip() or "Visual report 生成失败。"
+    return VisualReportSubprocessResult(exit_code=proc.returncode or 1, error_message=message)

@@ -125,6 +125,7 @@ class ClarifyingQuestion(BaseModel):
     default_assumption: str = ""
     rawdata_grain: str = ""
     rawdata_table_id: str = ""
+    clarification_kind: str = "missing_rawdata"
 
 
 class UserAnswer(BaseModel):

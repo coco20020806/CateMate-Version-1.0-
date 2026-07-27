@@ -10,6 +10,7 @@ class BlueprintSheetRow(BaseModel):
     title: str
     sub_question: str
     presentation: str = ""
+    scope_note: str = ""
 
 
 class PlanSheetRow(BaseModel):
@@ -18,6 +19,10 @@ class PlanSheetRow(BaseModel):
     module_id: str
     metric_id: str
     grain: str
+    is_sub_category: int = 0
+    scope_kind: str = "standard"
+    source_kind: str = "rawdata"
+    table_id: str = ""
     status: str
     scope_label: str = ""
     missing: str = ""

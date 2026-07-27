@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+import webbrowser
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -29,11 +30,14 @@ from catemate.pipeline.manifest import (
     update_and_save_manifest,
 )
 from app.pipeline_runtime import (
+    run_conclusion_brief_subprocess,
     run_pipeline_continue_after_category_confirmation_subprocess,
     run_pipeline_continue_from_manifest_subprocess,
     run_pipeline_from_request_text_subprocess,
     run_ppt_ready_subprocess,
+    run_visual_report_subprocess,
 )
+from app.visual_report_editor import render_visual_report_editor
 from catemate.pipeline.runner import PipelineRunResult
 from catemate.understanding.category_confirmation import is_category_confirmation_complete
 from catemate.understanding.clarification import is_clarification_complete
@@ -54,7 +58,7 @@ def manifest_path_attr(manifest: PipelineManifest, name: str) -> str | None:
 
 STATUS_ACTION_HINTS: dict[str, str] = {
     "awaiting_category_confirmation": "待确认类目",
-    "category_confirmed": "类目已确认",
+    "category_confirmed": "可继续 SolveLoop",
     "awaiting_clarification": "待澄清",
     "awaiting_rawdata_clarification": "待补数据",
     "clarification_completed": "可继续",
@@ -346,13 +350,29 @@ def render_manifest_summary(manifest: PipelineManifest, manifest_path: Path | No
         ("Solve loop state", display_path(manifest_path_attr(manifest, "solve_loop_state_path"))),
         ("Solve verdict", display_path(manifest_path_attr(manifest, "solve_verdict_path"))),
         ("Data workbook (V2)", display_path(manifest_path_attr(manifest, "data_workbook_path"))),
+        ("Sub-L3 筛选 CSV 目录", display_path(manifest_path_attr(manifest, "subset_scope_dir"))),
+        ("Sub-L3 筛选规则 (JSON)", display_path(manifest_path_attr(manifest, "sub_l3_filter_spec_path"))),
+        ("Sub-L3 筛选规则 (Markdown)", display_path(manifest_path_attr(manifest, "sub_l3_filter_rules_path"))),
         ("Planning spec", display_path(manifest.planning_spec_path)),
         ("数据需求 workbook", display_path(manifest.requirement_workbook_path)),
         ("PPT-ready workbook", display_path(manifest.ppt_ready_workbook_path)),
         ("HTML preview", display_path(manifest.html_preview_path)),
+        ("Visual Report Spec", display_path(manifest_path_attr(manifest, "visual_report_spec_path"))),
+        ("HTML 报告", display_path(manifest_path_attr(manifest, "html_report_path"))),
+        ("结论简报 (Markdown)", display_path(manifest_path_attr(manifest, "conclusion_brief_path"))),
+        ("结论简报 (JSON)", display_path(manifest_path_attr(manifest, "conclusion_brief_json_path"))),
     ]
     for label, path_text in rows:
         st.markdown(f"- **{label}**：`{path_text}`")
+
+
+def _v2_pipeline_needs_continue_after_category(manifest: PipelineManifest) -> bool:
+    """True when category gate passed but SolveLoop / workbook was never produced."""
+    if manifest.planning_mode != "v2_solve_loop":
+        return False
+    if manifest_path_attr(manifest, "data_workbook_path"):
+        return False
+    return manifest.status in {"category_confirmed", "failed"}
 
 
 def render_category_confirmation_section(manifest: PipelineManifest, manifest_path: Path) -> bool:
@@ -384,6 +404,23 @@ def render_category_confirmation_section(manifest: PipelineManifest, manifest_pa
         manifest_path,
         on_category_confirmed=_on_confirmed,
     )
+    if complete and _v2_pipeline_needs_continue_after_category(manifest):
+        st.warning(
+            "类目已确认，但 SolveLoop / Data Workbook 尚未生成。"
+            "若上次自动续跑失败，可点击下方按钮重试。"
+        )
+        if st.button(
+            "继续生成 SolveLoop / Data Workbook",
+            type="primary",
+            key=f"continue_after_category::{normalize_path_key(manifest_path)}",
+        ):
+            with st.spinner("正在续跑 pipeline…"):
+                result = run_pipeline_continue_after_category_confirmation_subprocess(manifest_path)
+            if result.exit_code == 0:
+                st.session_state[LAST_PIPELINE_MESSAGE_KEY] = ("success", "Pipeline 已继续。")
+                st.rerun()
+            else:
+                st.error(result.error_message or "续跑失败。")
     return complete
 
 
@@ -534,6 +571,7 @@ def render_clarification_section(manifest: PipelineManifest, manifest_path: Path
                 and is_clarification_complete(spec)
                 and (
                     manifest.status == "awaiting_rawdata_clarification"
+                    or manifest.status == "category_confirmed"
                     or downstream_stale
                     or manifest.status in {"clarification_completed", "understanding_generated"}
                 )
@@ -557,7 +595,10 @@ def render_clarification_section(manifest: PipelineManifest, manifest_path: Path
             )
             if st.button(label, type="primary", key="continue_after_clarification"):
                 with st.spinner("正在合并澄清答案并续跑 pipeline..."):
-                    result = run_pipeline_continue_from_manifest_subprocess(manifest_path)
+                    if manifest.status == "category_confirmed":
+                        result = run_pipeline_continue_after_category_confirmation_subprocess(manifest_path)
+                    else:
+                        result = run_pipeline_continue_from_manifest_subprocess(manifest_path)
                 if result.exit_code == 0:
                     st.session_state["active_manifest_path"] = str(manifest_path)
                     st.success("后续步骤已生成。")
@@ -617,6 +658,22 @@ def render_solve_loop_section(manifest: PipelineManifest, manifest_path: Path) -
             f"阶段：{loop_state.get('phase')} · 迭代：{loop_state.get('loop_iteration')} "
             f"· 数据题：{len(loop_state.get('rawdata_questions') or [])}"
         )
+        precompute = (loop_state.get("metadata") or {}).get("subset_precompute") or {}
+        if precompute.get("hit"):
+            st.caption(
+                f"Sub-L3 预筛：{precompute.get('entries', 0)} 个切片，"
+                f"共 {precompute.get('output_rows', 0)} 行匹配 item 数据"
+            )
+
+    subset_scope_dir = manifest_path_attr(manifest, "subset_scope_dir")
+    if subset_scope_dir:
+        st.markdown(f"**Sub-L3 筛选 CSV 目录**：`{display_path(subset_scope_dir)}`")
+        rules_md = manifest_path_attr(manifest, "sub_l3_filter_rules_path")
+        if rules_md:
+            rules_path = resolve_manifest_path(CATEMATE_ROOT, rules_md)
+            if rules_path and rules_path.exists():
+                with st.expander("查看 Sub-L3 筛选规则", expanded=False):
+                    st.markdown(rules_path.read_text(encoding="utf-8"))
 
     if verdict:
         st.success(
@@ -628,7 +685,15 @@ def render_solve_loop_section(manifest: PipelineManifest, manifest_path: Path) -
         st.markdown(f"**Data Workbook**：`{display_path(data_workbook_path)}`")
 
     if manifest.status == "awaiting_rawdata_clarification" and loop_state:
-        st.warning("存在缺源数据，请在澄清区补充文件路径或选择跳过。")
+        rawdata_questions = loop_state.get("rawdata_questions") or []
+        missing_count = sum(
+            1 for q in rawdata_questions if q.get("clarification_kind", "missing_rawdata") == "missing_rawdata"
+        )
+        plan_config_count = len(rawdata_questions) - missing_count
+        detail = f"缺源数据 {missing_count} 条"
+        if plan_config_count:
+            detail += f"，计划配置问题 {plan_config_count} 条（无法通过上传文件解决）"
+        st.warning(f"存在待处理数据澄清：{detail}。请在澄清区补充文件路径、处理计划问题或选择跳过。")
         if st.button("以 partial 继续（不再补数）", key="v2_decline_data"):
             from catemate.pipeline.v2_runner import continue_v2_solve_loop
             from app.clarification_editor import load_understanding_spec
@@ -917,8 +982,13 @@ def render_history_manifest_picker(catalog: list[dict[str, object]]) -> Path | N
     return selected_manifest_path
 
 
-def render_data_workbook_consume_section(manifest: PipelineManifest) -> None:
-    st.subheader("6. Data Workbook 消费（HTML 预览）")
+def open_html_report_in_browser(html_path: Path) -> bool:
+    """Open a local HTML report in the user's default browser."""
+    return webbrowser.open(html_path.resolve().as_uri(), new=2)
+
+
+def render_data_workbook_consume_section(manifest: PipelineManifest, manifest_path: Path) -> None:
+    st.subheader("6. Data Workbook 消费（HTML 报告 / 结论简报）")
     data_workbook_path = manifest_path_attr(manifest, "data_workbook_path")
     if not data_workbook_path:
         st.info("尚无 Data Workbook。")
@@ -927,11 +997,107 @@ def render_data_workbook_consume_section(manifest: PipelineManifest) -> None:
     if wb_path is None or not wb_path.exists():
         st.warning("Data Workbook 文件不存在。")
         return
-    if st.button("从 Data Workbook 生成 HTML 预览", key="build_html_from_data_wb"):
-        from catemate.ppt_ready.build_from_data_workbook import build_html_from_data_workbook
 
-        out = build_html_from_data_workbook(wb_path)
-        st.success(f"HTML 预览已生成：`{out}`")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("从 Data Workbook 生成 HTML 预览", key="build_html_from_data_wb"):
+            from catemate.ppt_ready.build_from_data_workbook import build_html_from_data_workbook
+
+            out = build_html_from_data_workbook(wb_path)
+            update_and_save_manifest(
+                manifest_path=manifest_path,
+                case_id=manifest.case_id,
+                timestamp=manifest.timestamp,
+                request_text=manifest.request_text,
+                provider=manifest.provider,
+                model=manifest.model,
+                planning_mode=manifest.planning_mode,
+                html_preview_path=out,
+                status=manifest.status,
+            )
+            st.success(f"HTML 预览已生成：`{out}`")
+            st.rerun()
+    with col2:
+        if st.button("生成 Visual Report Spec", type="primary", key="build_visual_report_spec"):
+            with st.spinner("正在生成 Visual Report Spec（规则 + LLM）..."):
+                result = run_visual_report_subprocess(
+                    pipeline_manifest_path=manifest_path,
+                    mode="propose",
+                )
+            if result.exit_code != 0:
+                st.error(result.error_message or "Visual Report Spec 生成失败。")
+            else:
+                st.session_state[LAST_PIPELINE_MESSAGE_KEY] = (
+                    "success",
+                    "Visual Report Spec 已生成，请在校对区确认。",
+                )
+                st.rerun()
+    with col3:
+        if st.button("生成结论简报", key="build_conclusion_brief"):
+            with st.spinner("正在生成结论简报（LLM）..."):
+                result = run_conclusion_brief_subprocess(pipeline_manifest_path=manifest_path)
+            if result.exit_code != 0:
+                st.error(result.error_message or "结论简报生成失败。")
+            else:
+                st.session_state[LAST_PIPELINE_MESSAGE_KEY] = (
+                    "success",
+                    "结论简报已生成。",
+                )
+                st.rerun()
+
+    spec_path = resolve_manifest_path(
+        CATEMATE_ROOT, manifest_path_attr(manifest, "visual_report_spec_path")
+    )
+    if spec_path and spec_path.exists():
+        st.markdown(f"- **Visual Report Spec**：`{display_path(str(spec_path))}`")
+        st.markdown("#### Gate C · Visual Report Spec 校对")
+        _, confirmed = render_visual_report_editor(spec_path)
+        if confirmed:
+            st.rerun()
+
+        from catemate.html_report.proposal_generator import load_visual_report_spec
+
+        spec = load_visual_report_spec(spec_path)
+        if spec.spec_status == "confirmed":
+            if st.button("渲染 HTML 报告", type="primary", key="render_html_report"):
+                with st.spinner("正在渲染 HTML 报告..."):
+                    result = run_visual_report_subprocess(
+                        pipeline_manifest_path=manifest_path,
+                        mode="render",
+                    )
+                if result.exit_code != 0:
+                    st.error(result.error_message or "HTML 报告渲染失败。")
+                else:
+                    st.session_state[LAST_PIPELINE_MESSAGE_KEY] = (
+                        "success",
+                        "HTML 报告已生成。",
+                    )
+                    st.rerun()
+        else:
+            st.info("请先确认 Visual Report Spec，再渲染 HTML 报告。")
+
+    html_report_path = resolve_manifest_path(CATEMATE_ROOT, manifest_path_attr(manifest, "html_report_path"))
+    if html_report_path and html_report_path.exists():
+        col_path, col_open = st.columns([4, 1])
+        with col_path:
+            st.markdown(f"- **HTML 报告**：`{display_path(str(html_report_path))}`")
+        with col_open:
+            if st.button("在浏览器中打开", key="open_html_report_in_browser"):
+                if open_html_report_in_browser(html_report_path):
+                    st.success("已在浏览器中打开 HTML 报告。")
+                else:
+                    st.warning("无法自动打开浏览器，请手动打开上方文件路径。")
+
+    brief_md_path = resolve_manifest_path(CATEMATE_ROOT, manifest_path_attr(manifest, "conclusion_brief_path"))
+    brief_json_path = resolve_manifest_path(
+        CATEMATE_ROOT, manifest_path_attr(manifest, "conclusion_brief_json_path")
+    )
+    if brief_md_path and brief_md_path.exists():
+        st.markdown(f"- **结论简报 (Markdown)**：`{display_path(str(brief_md_path))}`")
+        if brief_json_path and brief_json_path.exists():
+            st.markdown(f"- **结论简报 (JSON)**：`{display_path(str(brief_json_path))}`")
+        with st.expander("查看结论简报", expanded=False):
+            st.markdown(brief_md_path.read_text(encoding="utf-8"))
 
 
 def render_workflow_sections(manifest: PipelineManifest, selected_manifest_path: Path) -> None:
@@ -967,7 +1133,7 @@ def render_workflow_sections(manifest: PipelineManifest, selected_manifest_path:
         render_solve_loop_section(manifest, selected_manifest_path)
         st.divider()
         if manifest_path_attr(manifest, "data_workbook_path"):
-            render_data_workbook_consume_section(manifest)
+            render_data_workbook_consume_section(manifest, selected_manifest_path)
         return
 
     render_module_selection_section(manifest)

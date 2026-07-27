@@ -33,6 +33,7 @@ def build_data_workbook_spec(
             title=s.title,
             sub_question=s.sub_question,
             presentation=s.expected_shape.presentation,
+            scope_note=_blueprint_scope_note(plan, s.section_id),
         )
         for s in blueprint.sections
     ]
@@ -43,6 +44,10 @@ def build_data_workbook_spec(
             module_id=r.module_id,
             metric_id=r.metric_id,
             grain=r.grain,
+            is_sub_category=1 if r.is_sub_category else 0,
+            scope_kind=r.scope_kind,
+            source_kind=r.source_kind,
+            table_id=r.table_id,
             status=r.status,
             scope_label=r.scope_label,
             missing=r.missing,
@@ -95,11 +100,29 @@ def write_data_workbook(
     wb = Workbook()
     wb.remove(wb.active)
 
-    _write_sheet(wb, "Blueprint", ["section_id", "title", "sub_question", "presentation"], spec.blueprint_rows)
+    _write_sheet(
+        wb,
+        "Blueprint",
+        ["section_id", "title", "sub_question", "presentation", "scope_note"],
+        spec.blueprint_rows,
+    )
     _write_sheet(
         wb,
         "Plan",
-        ["run_id", "section_id", "module_id", "metric_id", "grain", "status", "scope_label", "missing"],
+        [
+            "run_id",
+            "section_id",
+            "module_id",
+            "metric_id",
+            "grain",
+            "is_sub_category",
+            "scope_kind",
+            "source_kind",
+            "table_id",
+            "status",
+            "scope_label",
+            "missing",
+        ],
         spec.plan_rows,
     )
     _write_sheet(wb, "Gaps", ["gap_id", "section_id", "reason", "suggestion"], spec.gap_rows)
@@ -110,9 +133,21 @@ def write_data_workbook(
         spec.verify_rows,
     )
 
-    for table_id, df in execution.dataframes.items():
-        sheet_name = _safe_sheet_name(f"Data.{table_id}")
+    sheet_names_by_key = workbook_sheet_names_by_storage_key(execution)
+    for item in execution.tables:
+        storage_key = item.get("storage_key")
+        if not storage_key:
+            continue
+        df = execution.dataframes.get(storage_key)
+        if df is None:
+            continue
+        sheet_name = sheet_names_by_key.get(str(storage_key))
+        if not sheet_name:
+            continue
         ws = wb.create_sheet(title=sheet_name)
+        scope_note = df.attrs.get("scope_label")
+        if scope_note:
+            ws.append([f"scope: {scope_note}"])
         _write_dataframe(ws, df)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -143,8 +178,56 @@ def _write_dataframe(ws, df: pd.DataFrame) -> None:
         ws.append(list(record))
 
 
+def data_sheet_name_for_table(*, section_id: str, table_id: str, run_id: str) -> str:
+    """Public helper: expected Excel sheet title for an execution table row."""
+    return _data_sheet_name(section_id=section_id, table_id=table_id, run_id=run_id)
+
+
+def expected_data_sheet_names(execution: ExecutionResult) -> set[str]:
+    """Return all Data.* sheet titles implied by execution.tables metadata."""
+    return set(workbook_sheet_names_by_storage_key(execution).values())
+
+
+def workbook_sheet_names_by_storage_key(execution: ExecutionResult) -> dict[str, str]:
+    """Map execution storage_key to the Excel sheet title used in write_data_workbook."""
+    used: set[str] = set()
+    mapping: dict[str, str] = {}
+    for item in execution.tables:
+        storage_key = str(item.get("storage_key") or "")
+        if not storage_key:
+            continue
+        section_id = str(item.get("section_id") or "section")
+        table_id = str(item.get("table_id") or "table")
+        run_id = str(item.get("run_id") or "")
+        base = _data_sheet_name(section_id=section_id, table_id=table_id, run_id=run_id)
+        mapping[storage_key] = _unique_sheet_name(base, table_id=table_id, used=used)
+    return mapping
+
+
+def _data_sheet_name(*, section_id: str, table_id: str, run_id: str) -> str:
+    section_based = f"Data.{section_id}.{table_id}"
+    if len(section_based) <= 31:
+        return _safe_sheet_name(section_based)
+    run_based = f"Data.{run_id}.{table_id}"
+    return _safe_sheet_name(run_based)
+
+
+def _unique_sheet_name(base: str, *, table_id: str, used: set[str]) -> str:
+    if base not in used:
+        used.add(base)
+        return base
+    suffix = table_id.split("_")[-1][:4] or "t"
+    candidate = _safe_sheet_name(f"{base[: max(1, 31 - 5)]}_{suffix}")
+    index = 1
+    while candidate in used:
+        candidate = _safe_sheet_name(f"{base[: max(1, 28 - len(str(index)))]}_{index}")
+        index += 1
+    used.add(candidate)
+    return candidate
+
+
 def _safe_sheet_name(name: str) -> str:
-    invalid = set(r'[]:*?/\\')
+    invalid = set(r"[]:*?/\\")
     cleaned = "".join("_" if ch in invalid else ch for ch in name)
     return cleaned[:31] or "Data"
 
@@ -153,4 +236,13 @@ def _monthly_aggregation_note(df: pd.DataFrame) -> str:
     columns = {str(col).strip().lower() for col in df.columns}
     if "grass_month" in columns or "month" in columns:
         return "注：本表为月度聚合数据（grass_month/month）。"
+    return ""
+
+
+def _blueprint_scope_note(plan: AnalysisPlan, section_id: str) -> str:
+    for run in plan.runs:
+        if run.section_id == section_id and run.scope_kind == "comparison":
+            return "派生对比表（非 rawdata 源表）"
+        if run.section_id == section_id and run.scope_kind == "subset":
+            return "Plan 使用 item 粒度 + item_l3_category_csv（蓝图 grain 可为 category）"
     return ""

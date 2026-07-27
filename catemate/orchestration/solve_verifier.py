@@ -69,12 +69,23 @@ def verify_solution(
         for metric_id in required_metrics:
             key = metric_key(section.section_id, metric_id)
             tables = tables_by_section_metric.get(key, [])
-            non_empty = [
-                table_id
-                for table_id in tables
-                if execution.dataframes.get(table_id) is not None
-                and len(execution.dataframes[table_id]) > 0
-            ]
+            non_empty = []
+            for table_id in tables:
+                storage_key = None
+                for item in execution.tables:
+                    if (
+                        item.get("section_id") == section.section_id
+                        and item.get("metric_id") == metric_id
+                        and item.get("table_id") == table_id
+                        and item.get("table_kind") == "primary"
+                    ):
+                        storage_key = item.get("storage_key")
+                        break
+                if storage_key is None:
+                    continue
+                df = execution.dataframes.get(storage_key)
+                if df is not None and len(df) > 0:
+                    non_empty.append(table_id)
             if not non_empty:
                 missing_metrics.append(metric_id)
 

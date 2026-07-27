@@ -29,6 +29,7 @@ def load_table_for_scope(
     processed_data_dir: Path | None = None,
     manifest_path: Path | None = None,
     prefer_rawdata: bool = True,
+    require_rawdata: bool = False,
 ) -> tuple[pd.DataFrame, dict]:
     category_path = (category_l1, category_l2, category_l3)
     if prefer_rawdata and grain in RAWDATA_GRAINS:
@@ -48,8 +49,18 @@ def load_table_for_scope(
                     category_l3=category_l3,
                 )
             except (FileNotFoundError, ValueError):
-                if grain in {"category", "item"}:
+                if grain in {"category", "item"} or require_rawdata:
                     raise
+
+        if require_rawdata and grain in {"category", "item"}:
+            raise FileNotFoundError(
+                f"Rawdata required for {grain}/{table_id} but catalog source is unavailable"
+            )
+
+    if require_rawdata and grain in {"category", "item"}:
+        raise FileNotFoundError(
+            f"Rawdata required for {grain}/{table_id}; processed CSV fallback is disabled"
+        )
 
     processed_data_dir = processed_data_dir or PROCESSED_DATA_DIR
     manifest_path = manifest_path or (processed_data_dir / "processed_manifest.yaml")

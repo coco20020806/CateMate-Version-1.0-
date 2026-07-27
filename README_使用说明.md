@@ -1,8 +1,10 @@
 # CateMate 使用说明
 
-CateMate 是一个面向 Category Analysis 工作流的本地分析助手。当前 MVP 聚焦“类目分析数据需求确认 + PPT-ready 数据表生成”。
+CateMate 是一个面向 Category Analysis 工作流的本地分析助手。
 
-第一版不会直接生成正式报告或 PPT，而是完成以下闭环：
+**当前默认主链路是 V2 `v2_solve_loop`**（见仓库根目录 [README.md](README.md)）：自然语言 → 澄清 / 类目确认 → Solve Loop → **Data Workbook**；可选再生成 Conclusion Brief 与 HTML Visual Report。下文保留的 V1「确认 workbook → PPT-ready」步骤仍可用于兼容链路。
+
+V1 兼容闭环：
 
 ```text
 源数据
@@ -18,22 +20,16 @@ confirmation gate 检查
 
 ## 当前已完成能力
 
-1. 读取 `CateMate_rawdata` 中的 SPH Excel 源数据。
-2. 预处理 `SPH类目树`，生成可查找的类目树表。
-3. 生成数据需求/确认 workbook。
-4. 在 Streamlit 中人工确认或舍弃确认项。
-5. 检查确认项是否全部为 `已确认` 或 `不需要`。
-6. 在确认通过后生成 PPT-ready workbook。
+1. V2 Solve Loop：Data Workbook（Plan / Data / Gaps）、Sub-L3 预计算、subset vs parent 份额对比。
+2. 可选消费层：Conclusion Brief、Visual Report Spec / Plotly HTML（Streamlit 或对应 scripts）。
+3. 读取 `CateMate_rawdata` 中的源数据（本地私有，不进 Git）。
+4. V1：生成数据需求/确认 workbook → Streamlit 确认 → confirmation gate → PPT-ready workbook。
 
 ## 当前暂不支持
 
-- 直接生成正式 PPT。
-- HTML preview。
-- 对外交付脱敏。
-- 价格段分布分析。
-- 关键词搜索量 YoY。
-- 气泡图专用数据表 `yoy_bubble_data`。
-- DeepSeek / Pydantic AI / LlamaIndex 工作流接入。
+- 直接生成正式 PPT 文件（仅 PPT-ready 数据包 / HTML 预览）。
+- 对外交付脱敏（内部数据包；公开仓库不含真实业务源数据）。
+- 价格段 / 关键词等 draft 模块进入 solve loop（记入 Gaps）。
 
 ## 项目目录
 

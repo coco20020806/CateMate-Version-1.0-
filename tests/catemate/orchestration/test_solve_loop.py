@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from catemate.orchestration.blueprint_generator import build_report_blueprint
 from catemate.orchestration.plan_composer import compose_analysis_plan
-from catemate.orchestration.solve_loop import run_solve_loop
+from catemate.orchestration.schemas import AnalysisPlan, PlanRun
+from catemate.orchestration.solve_loop import _available_metrics_by_run, run_solve_loop
 from catemate.understanding.schemas import (
     AnalysisIntent,
     RequirementReadiness,
@@ -43,6 +44,31 @@ def test_compose_plan_runs() -> None:
 
 
 def test_solve_loop_single_iteration() -> None:
-    state = run_solve_loop(_sample_spec(), max_iterations=1)
+    result = run_solve_loop(_sample_spec(), max_iterations=1)
+    state = result.state
     assert state.blueprint is not None
     assert state.plan is not None
+
+
+def test_available_metrics_by_run_skips_computed_comparison() -> None:
+    plan = AnalysisPlan(
+        goal="test",
+        runs=[
+            PlanRun(
+                run_id="cmp-orders",
+                section_id="s_share",
+                module_id="monthly_market_trend",
+                metric_id="orders",
+                grain="category",
+                table_id="subset_l3_orders_share_by_site_month",
+                scope_kind="comparison",
+                source_kind="computed",
+                status="executable",
+                target_sites=["VN"],
+                category_l1="Pets",
+                category_l2="Pet Accessories",
+                category_l3="Bowls & Feeders",
+            ),
+        ],
+    )
+    assert _available_metrics_by_run(plan, processed_data_dir=None) == {}

@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from catemate.core.paths import ARCHIVE_DIR_NAMES
+from catemate.scope.scope_cache import MANIFEST_FILENAME
+from catemate.scope.sub_l3_artifacts import FILTER_RULES_MD_FILENAME, FILTER_SPEC_FILENAME
 
 
 PIPELINE_VERSION = "v2"
@@ -37,6 +39,13 @@ class PipelineManifest:
     solve_loop_state_path: str | None = None
     solve_verdict_path: str | None = None
     data_workbook_path: str | None = None
+    conclusion_brief_path: str | None = None
+    conclusion_brief_json_path: str | None = None
+    visual_report_spec_path: str | None = None
+    html_report_path: str | None = None
+    subset_scope_dir: str | None = None
+    sub_l3_filter_spec_path: str | None = None
+    sub_l3_filter_rules_path: str | None = None
     created_at: str = ""
     pipeline_version: str = PIPELINE_VERSION
     status: str = "in_progress"
@@ -77,6 +86,13 @@ class PipelineManifest:
             "solve_loop_state_path",
             "solve_verdict_path",
             "data_workbook_path",
+            "conclusion_brief_path",
+            "conclusion_brief_json_path",
+            "visual_report_spec_path",
+            "html_report_path",
+            "subset_scope_dir",
+            "sub_l3_filter_spec_path",
+            "sub_l3_filter_rules_path",
             "created_at",
             "pipeline_version",
             "status",
@@ -85,7 +101,14 @@ class PipelineManifest:
         }
         kwargs = {key: data.get(key) for key in known}
         extra = {key: value for key, value in data.items() if key not in known}
-        return cls(extra=extra, **kwargs)
+        manifest = cls(extra=extra, **kwargs)
+        if manifest.subset_scope_dir is None and extra.get("subset_scope_dir"):
+            manifest.subset_scope_dir = str(extra["subset_scope_dir"])
+        if manifest.sub_l3_filter_spec_path is None and extra.get("sub_l3_filter_spec_path"):
+            manifest.sub_l3_filter_spec_path = str(extra["sub_l3_filter_spec_path"])
+        if manifest.sub_l3_filter_rules_path is None and extra.get("sub_l3_filter_rules_path"):
+            manifest.sub_l3_filter_rules_path = str(extra["sub_l3_filter_rules_path"])
+        return manifest
 
 
 def default_manifest_path(output_dir: Path, case_id: str, timestamp: str) -> Path:
@@ -179,6 +202,13 @@ def update_and_save_manifest(
     solve_loop_state_path: Path | str | None = None,
     solve_verdict_path: Path | str | None = None,
     data_workbook_path: Path | str | None = None,
+    conclusion_brief_path: Path | str | None = None,
+    conclusion_brief_json_path: Path | str | None = None,
+    visual_report_spec_path: Path | str | None = None,
+    html_report_path: Path | str | None = None,
+    subset_scope_dir: Path | str | None = None,
+    sub_l3_filter_spec_path: Path | str | None = None,
+    sub_l3_filter_rules_path: Path | str | None = None,
     status: str = "in_progress",
     error_step: str | None = None,
     error_message: str | None = None,
@@ -236,6 +266,27 @@ def update_and_save_manifest(
         data_workbook_path=path_for_manifest(data_workbook_path)
         if data_workbook_path is not None
         else (getattr(existing, "data_workbook_path", None) if existing else None),
+        conclusion_brief_path=path_for_manifest(conclusion_brief_path)
+        if conclusion_brief_path is not None
+        else (getattr(existing, "conclusion_brief_path", None) if existing else None),
+        conclusion_brief_json_path=path_for_manifest(conclusion_brief_json_path)
+        if conclusion_brief_json_path is not None
+        else (getattr(existing, "conclusion_brief_json_path", None) if existing else None),
+        visual_report_spec_path=path_for_manifest(visual_report_spec_path)
+        if visual_report_spec_path is not None
+        else (getattr(existing, "visual_report_spec_path", None) if existing else None),
+        html_report_path=path_for_manifest(html_report_path)
+        if html_report_path is not None
+        else (getattr(existing, "html_report_path", None) if existing else None),
+        subset_scope_dir=path_for_manifest(subset_scope_dir)
+        if subset_scope_dir is not None
+        else (getattr(existing, "subset_scope_dir", None) if existing else None),
+        sub_l3_filter_spec_path=path_for_manifest(sub_l3_filter_spec_path)
+        if sub_l3_filter_spec_path is not None
+        else (getattr(existing, "sub_l3_filter_spec_path", None) if existing else None),
+        sub_l3_filter_rules_path=path_for_manifest(sub_l3_filter_rules_path)
+        if sub_l3_filter_rules_path is not None
+        else (getattr(existing, "sub_l3_filter_rules_path", None) if existing else None),
         created_at=created,
         pipeline_version=PIPELINE_VERSION,
         status=status,
@@ -244,3 +295,66 @@ def update_and_save_manifest(
     )
     save_pipeline_manifest(manifest, manifest_path)
     return manifest
+
+
+def register_subset_scope_artifacts(
+    manifest_path: Path,
+    output_dir: Path,
+    *,
+    state_metadata: dict[str, Any] | None = None,
+) -> PipelineManifest | None:
+    """Persist subset_scope artifact paths on manifest when files exist on disk."""
+    subset_dir = output_dir / "subset_scope"
+    manifest_file = subset_dir / MANIFEST_FILENAME
+    if not manifest_file.exists():
+        return None
+
+    spec_path = subset_dir / FILTER_SPEC_FILENAME
+    rules_path = subset_dir / FILTER_RULES_MD_FILENAME
+    if state_metadata:
+        subset_dir_text = state_metadata.get("subset_scope_dir")
+        if subset_dir_text:
+            subset_dir = Path(str(subset_dir_text))
+        spec_text = state_metadata.get("sub_l3_filter_spec_path")
+        if spec_text:
+            spec_path = Path(str(spec_text))
+        rules_text = state_metadata.get("sub_l3_filter_rules_path")
+        if rules_text:
+            rules_path = Path(str(rules_text))
+
+    existing = load_pipeline_manifest(manifest_path)
+    updated = PipelineManifest(
+        case_id=existing.case_id,
+        timestamp=existing.timestamp,
+        request_text=existing.request_text,
+        provider=existing.provider,
+        model=existing.model,
+        planning_mode=existing.planning_mode,
+        case_config_path=existing.case_config_path,
+        understanding_spec_path=existing.understanding_spec_path,
+        module_selection_plan_path=existing.module_selection_plan_path,
+        planning_spec_path=existing.planning_spec_path,
+        requirement_workbook_path=existing.requirement_workbook_path,
+        ppt_ready_workbook_path=existing.ppt_ready_workbook_path,
+        html_preview_path=existing.html_preview_path,
+        report_blueprint_path=existing.report_blueprint_path,
+        analysis_plan_path=existing.analysis_plan_path,
+        solve_loop_state_path=existing.solve_loop_state_path,
+        solve_verdict_path=existing.solve_verdict_path,
+        data_workbook_path=existing.data_workbook_path,
+        conclusion_brief_path=existing.conclusion_brief_path,
+        conclusion_brief_json_path=existing.conclusion_brief_json_path,
+        visual_report_spec_path=existing.visual_report_spec_path,
+        html_report_path=existing.html_report_path,
+        subset_scope_dir=path_for_manifest(subset_dir),
+        sub_l3_filter_spec_path=path_for_manifest(spec_path) if spec_path.exists() else existing.sub_l3_filter_spec_path,
+        sub_l3_filter_rules_path=path_for_manifest(rules_path) if rules_path.exists() else existing.sub_l3_filter_rules_path,
+        created_at=existing.created_at,
+        pipeline_version=existing.pipeline_version,
+        status=existing.status,
+        error_step=existing.error_step,
+        error_message=existing.error_message,
+        extra=dict(existing.extra),
+    )
+    save_pipeline_manifest(updated, manifest_path)
+    return updated

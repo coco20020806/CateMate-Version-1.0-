@@ -8,6 +8,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 GrainType = Literal["category", "shop", "item"]
+ScopeKind = Literal["standard", "subset", "parent_l3", "comparison"]
 RunStatus = Literal["executable", "blocked_until_rawdata", "skipped", "executed", "failed"]
 SolveVerdictType = Literal["solved", "partial", "retry"]
 SolveLoopPhase = Literal[
@@ -21,6 +22,8 @@ SolveLoopPhase = Literal[
     "done",
 ]
 MetricRole = Literal["primary", "supplementary"]
+SourceKind = Literal["rawdata", "computed"]
+ClarificationKind = Literal["missing_rawdata", "plan_config"]
 ExitReason = Literal["solved", "user_declined_data", "max_iterations"] | None
 
 
@@ -63,6 +66,9 @@ class PlanRun(BaseModel):
     category_l3: str = ""
     related_concept_pack: dict[str, Any] | None = None
     related_min_score: float = 0.55
+    is_sub_category: bool = False
+    scope_kind: ScopeKind = "standard"
+    source_kind: SourceKind = "rawdata"
 
 
 class AnalysisPlan(BaseModel):
@@ -96,6 +102,7 @@ class RawdataClarificationQuestion(BaseModel):
     answered: bool = False
     skipped: bool = False
     answer_path: str = ""
+    clarification_kind: ClarificationKind = "missing_rawdata"
 
 
 class MetricRecommendation(BaseModel):

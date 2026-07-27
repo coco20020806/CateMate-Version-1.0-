@@ -62,6 +62,8 @@ Scope 按已确认 L3 筛选，组织章节建议如下：
 2. 据此判断：该子集概念在所在 L3 中是强势细分、小众 niche，还是与大盘趋势一致/背离。  
 3. 蓝图中应为对比结论预留明确章节或子问题（如「子集占 L3 GMV 比例如何？」），仍用 `monthly_market_trend` 产出月度表。
 
+**Blueprint vs Plan 粒度说明**：Sub-L3 子集趋势章节在蓝图中可能写 `grain=category`，但 Plan 会解析为 `grain=item` + 源表 `item_l3_category_csv`（数据来自 `CateMate_rawdata/item/{L1}/{L2}/{L3}/`）。对比份额章节产出派生表 `subset_l3_{metric}_share_by_site_month`，不是 rawdata 源表。
+
 ---
 
 ## 3. 章节设计规则

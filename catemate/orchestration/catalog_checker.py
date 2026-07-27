@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from catemate.data.rawdata_catalog import catalog_key, get_catalog_entry, is_catalog_available
+from catemate.orchestration.derived_tables import is_comparison_table_id, is_computed_scope
 from catemate.orchestration.module_source_bindings import (
     grain_requires_scope,
     validate_run_source,
@@ -21,6 +22,12 @@ def check_plan_catalog_readiness(plan: AnalysisPlan) -> tuple[AnalysisPlan, list
         table_id = run.table_id or _table_id_from_catalog_key(run.required_catalog)
         if not table_id:
             updated_runs.append(run)
+            continue
+
+        if is_computed_scope(run.scope_kind) or is_comparison_table_id(table_id):
+            updated_runs.append(
+                run.model_copy(update={"status": "executable", "table_id": table_id, "missing": ""})
+            )
             continue
 
         if not validate_run_source(run.module_id, grain, table_id):
@@ -47,6 +54,7 @@ def check_plan_catalog_readiness(plan: AnalysisPlan) -> tuple[AnalysisPlan, list
                         table_id=table_id,
                         catalog_key=key,
                         reason="模块 source_bindings 未允许该 grain/table 组合",
+                        clarification_kind="plan_config",
                     )
                 )
             continue
@@ -76,6 +84,7 @@ def check_plan_catalog_readiness(plan: AnalysisPlan) -> tuple[AnalysisPlan, list
                         table_id=table_id,
                         catalog_key=key,
                         reason="item 维度源数据按 L3 类目文件夹组织",
+                        clarification_kind="missing_rawdata",
                     )
                 )
             continue
@@ -112,6 +121,7 @@ def check_plan_catalog_readiness(plan: AnalysisPlan) -> tuple[AnalysisPlan, list
                     table_id=table_id,
                     catalog_key=key,
                     reason=entry.get("description", "分析计划需要此源表"),
+                    clarification_kind="missing_rawdata",
                 )
             )
 

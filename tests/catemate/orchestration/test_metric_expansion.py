@@ -120,7 +120,8 @@ def test_plan_expander_same_section() -> None:
 
 def test_solve_loop_metric_expansion_produces_orders_tables() -> None:
     spec = _pet_bowls_spec()
-    state = run_solve_loop(spec, max_iterations=1, ai_client=None)
+    result = run_solve_loop(spec, max_iterations=1, ai_client=None)
+    state = result.state
     assert state.verdict is not None
     assert state.verdict.verdict == "solved"
     assert state.plan is not None
@@ -151,7 +152,8 @@ def test_gmv_only_request_skips_orders_expansion() -> None:
         ),
         readiness=RequirementReadiness(can_select_modules=True),
     )
-    state = run_solve_loop(spec, max_iterations=1, ai_client=None)
+    result = run_solve_loop(spec, max_iterations=1, ai_client=None)
+    state = result.state
     assert state.plan is not None
     assert len(state.plan.runs) == 1
     assert state.plan.runs[0].metric_id == "gmv"

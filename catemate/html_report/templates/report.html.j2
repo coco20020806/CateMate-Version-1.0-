@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: #f7f8fa; color: #1a1a1a; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 20px 48px; }
+    h1 { font-size: 1.75rem; margin: 0 0 8px; }
+    .meta { color: #555; font-size: 0.95rem; margin-bottom: 24px; }
+    .summary { background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 16px 18px; margin-bottom: 28px; line-height: 1.6; }
+    .section { background: #fff; border: 1px solid #e3e6ea; border-radius: 8px; padding: 18px 18px 8px; margin-bottom: 24px; }
+    .section h2 { margin: 0 0 6px; font-size: 1.25rem; }
+    .section .sub { color: #666; font-size: 0.9rem; margin-bottom: 10px; }
+    .narrative { line-height: 1.6; margin-bottom: 16px; }
+    .chart-block { margin-bottom: 12px; border-top: 1px dashed #e3e6ea; padding-top: 12px; }
+    .chart-block.secondary { opacity: 0.95; }
+    .gaps { background: #fff8e6; border: 1px solid #f0d89a; border-radius: 8px; padding: 14px 16px; }
+    .gaps h3 { margin: 0 0 8px; font-size: 1rem; }
+    .gaps ul { margin: 0; padding-left: 20px; }
+    .badge { display: inline-block; font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #334; margin-left: 8px; }
+    .badge.unsolved { background: #fde8e8; color: #922; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>{{ title }}</h1>
+    <div class="meta">{{ report_goal }}</div>
+    {% if executive_summary %}
+    <div class="summary">{{ executive_summary }}</div>
+    {% endif %}
+
+    {% for section in sections %}
+    <div class="section">
+      <h2>
+        {{ section.title }}
+        {% if section.status == 'unsolved' %}
+        <span class="badge unsolved">未完全解决</span>
+        {% elif section.status == 'partial' %}
+        <span class="badge">部分</span>
+        {% endif %}
+      </h2>
+      {% if section.sub_question %}
+      <div class="sub">{{ section.sub_question }}</div>
+      {% endif %}
+      {% if section.narrative %}
+      <div class="narrative">{{ section.narrative }}</div>
+      {% endif %}
+      {% for chart in section.charts %}
+      <div class="chart-block {{ chart.role }}">
+        {{ chart.html | safe }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    {% if data_gaps %}
+    <div class="gaps">
+      <h3>数据缺口 / 注意事项</h3>
+      <ul>
+        {% for gap in data_gaps %}
+        <li>{{ gap }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>
