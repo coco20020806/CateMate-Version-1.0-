@@ -4,12 +4,15 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)](requirements.txt)
-[![Streamlit](https://img.shields.io/badge/UI-Streamlit-FF4B4B)](app/streamlit_dashboard.py)
+[![Workbench](https://img.shields.io/badge/UI-Workbench_React-0ea5e9)](CateMate-Workbench/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688)](api/catemate_api.py)
+[![Streamlit](https://img.shields.io/badge/UI-Streamlit_兼容-FF4B4B)](app/streamlit_dashboard.py)
 [![V2](https://img.shields.io/badge/V2-Solve_Loop_主链路-green)](docs/CATEMATE_V2_DESIGN_OVERVIEW.md)
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](CHANGELOG.md)
 
 **个人 AI Demo 项目，非生产系统。** 仓库不含真实业务源数据，请用 [`examples/`](examples/) 合成数据体验。
 
+**推荐入口（v1.3.0）**：`python scripts/start_workbench.py` → http://localhost:5173  
 中文操作说明 → [README_使用说明.md](README_使用说明.md) · 版本记录 → [CHANGELOG.md](CHANGELOG.md)
 
 ---
@@ -47,9 +50,10 @@ V2 核心公式：**分析语义 = Scope（取数）× Data Module（写死 Pyth
 
 ---
 
-## V2 进度（当前迭代 · v1.2.0）
+## V2 进度（当前迭代 · v1.3.0）
 
-Streamlit 默认模式为 **`v2_solve_loop`**。主交付物仍是 **`data_workbook_*.xlsx`**（Plan + 数据表族 + Gaps）；其上可再生成 Conclusion Brief 与 HTML Visual Report。
+默认分析模式为 **`v2_solve_loop`**。主交付物仍是 **`data_workbook_*.xlsx`**（Plan + 数据表族 + Gaps）；其上可再生成 Conclusion Brief、HTML Visual Report 与 Print 汇报稿。  
+**v1.3.0 推荐用 Workbench（React）操作整条流水线**；Streamlit 总控台仍可用。
 
 | 阶段 | 内容 | 状态 |
 |------|------|------|
@@ -61,7 +65,8 @@ Streamlit 默认模式为 **`v2_solve_loop`**。主交付物仍是 **`data_workb
 | **4b** | Sub-L3 预计算 / ScopeCache / 过滤规则产物 | ✅ 已落地 |
 | **4c** | multi-scope：`subset` / `parent_l3` / `comparison` | ✅ 已落地 |
 | **5** | 用 V2 模块逐步替换 V1 YAML 模块 | 🔄 进行中 |
-| **6** | Conclusion Brief + HTML Visual Report 消费 Workbook | ✅ 已落地 |
+| **6** | Conclusion Brief + HTML Visual Report + Print 汇报稿 消费 Workbook | ✅ 已落地 |
+| **7** | Workbench UI + FastAPI 桥接（类目确认 / 澄清 / Solve / Deliverables） | ✅ 已落地 |
 
 **V2 solve loop 已启用模块**（`contract.yaml` 中 `status: active`）：
 
@@ -95,7 +100,8 @@ CateMate/
 │   ├── execution/                # Scope × module → 表族（含 comparison runner）
 │   ├── modules/                  # Data Workbook 组装
 │   ├── conclusion_brief/         # 结论简报（LLM 消费 Workbook）
-│   ├── html_report/              # Visual Report Spec + Plotly HTML
+│   ├── html_report/              # Visual Report Spec + Plotly HTML（精确数）
+│   ├── print_report/             # Print Vertical Report（模糊数 · 可打印）
 │   ├── pipeline/                 # runner.py + v2_runner.py + manifest
 │   ├── module_selection/         # V1 模块选择
 │   ├── planning/                 # V1 确定性规划
@@ -110,6 +116,8 @@ CateMate/
 │   └── cases/                    # 本地 case（yaml 不进 Git）
 │
 ├── data_modules/                 # V2 可执行模块（source_schema + compute.py）
+├── api/                          # FastAPI 桥接层（Workbench 后端）
+├── CateMate-Workbench/           # React + Express 前端（替代 Streamlit）
 ├── scripts/                      # CLI 入口
 ├── tests/
 ├── examples/                     # 公开 demo 数据
@@ -122,6 +130,61 @@ CateMate/
 ```
 
 详细目录说明 → [docs/PROJECT_LAYOUT.md](docs/PROJECT_LAYOUT.md)
+
+---
+
+## 前端：CateMate Workbench（React）
+
+CateMate 提供两种 UI：
+
+| UI | 技术栈 | 启动方式 | 特点 |
+|----|--------|----------|------|
+| **Workbench**（推荐） | React + Express + FastAPI | `python scripts/start_workbench.py` | 分步向导、侧边栏导航、独立 API 层 |
+| **Streamlit 总控台**（兼容） | Python / Streamlit | `streamlit run app/streamlit_dashboard.py` | 单页全功能，直接 import Python 模块 |
+
+### Workbench 启动
+
+```bash
+# 1. 安装 FastAPI 依赖（首次）
+pip install -r api/requirements.txt
+
+# 2. 安装前端依赖（首次；Windows 推荐用 corepack）
+cd CateMate-Workbench
+corepack enable
+corepack pnpm install
+cd ..
+
+# 3. 一键启动三层服务
+python scripts/start_workbench.py
+```
+
+Windows PowerShell 注意：不要用 `&&` 链接命令，请分行执行；若改过 `pnpm-workspace.yaml` 的平台 overrides，需删除 `CateMate-Workbench/node_modules` 后重新 `corepack pnpm install`。
+
+启动后（默认端口）：
+- **前端**：http://localhost:5173
+- **Express API**：http://localhost:3001/api
+- **FastAPI（Python 桥接）**：http://localhost:8100/docs（Swagger UI）
+
+若本机 **8100 已被占用**（含 Windows「幽灵 LISTEN」），`start_workbench.py` 会**自动改用 8101**，并把 Express 的 `PYTHON_API_URL` 指到实际端口；以启动日志打印的地址为准。
+
+两套 UI 共享同一 `outputs/` 目录和 Python pipeline，可并行使用。
+
+### Workbench 能力要点
+
+- 新建分析 → Run History / Detail 向导：类目确认（Gate A0）→ 澄清 → Solve Loop → Deliverables
+- **Understanding Summary**：Site（`target_sites`）/ Intent（`analysis_intents`）/ Time Range / Assumptions / Risks / Concept Pack
+- 类目确认后自动续跑进入澄清（对齐 Streamlit）；支持 Brief / HTML / Print 等后置产物入口
+- Settings：AI Provider（如本机 Codex Proxy / DeepSeek）；Datasources / Modules 浏览
+
+### 架构
+
+```text
+React SPA (Vite :5173)
+  → Express proxy (:3001)
+    → FastAPI bridge (:8100 或自动 :8101)
+      → CateMate Python pipeline (subprocess / direct import)
+      → outputs/ 文件系统
+```
 
 ---
 
@@ -159,7 +222,7 @@ Agent 导航 → [docs/AI_CORE_INDEX.md](docs/AI_CORE_INDEX.md)
 2）智能宠物碗子集下的头部 SKU 列表（用于对标选品）。
 ```
 
-> v1.2.0 仍仅 **2 个 active 模块**参与 solve loop；用户若提到价格带、关键词等，会在 Gaps 中标注为当前不支持，不会调用 draft 模块。
+> v1.3.0 仍仅 **2 个 active 模块**参与 solve loop；用户若提到价格带、关键词等，会在 Gaps 中标注为当前不支持，不会调用 draft 模块。
 
 ### 求解流程
 
@@ -240,7 +303,7 @@ flowchart TB
 | 10 | 交付 | `data_workbook_*.xlsx` | Plan / Data.\<table_id\> / Gaps |
 | 11 | 消费层（可选） | `conclusion_brief_*.*`、`visual_report_spec_*.json`、HTML | 叙事与可视化，不改写算数 |
 
-### 本示例对应的模块编排（v1.2.0 active only）
+### 本示例对应的模块编排（v1.3.0 active only）
 
 | 子问题 | module_id | scope_kind | grain | 输出 |
 |--------|-----------|------------|-------|------|
@@ -334,6 +397,7 @@ python scripts/run_natural_language_requirement_pipeline.py --continue-from-mani
 ```powershell
 python scripts/build_conclusion_brief_from_data_workbook.py --workbook outputs/runs/<run>/data_workbook_*.xlsx
 python scripts/build_html_report_from_data_workbook.py --workbook outputs/runs/<run>/data_workbook_*.xlsx
+python scripts/build_print_report_from_visual_spec.py --pipeline-manifest outputs/runs/<run>/pipeline_manifest_*.json
 ```
 
 ### V1 链路（兼容）
@@ -349,7 +413,7 @@ python scripts/run_category_requirement_case.py examples/cases/demo_stationery_s
 
 | 文档 | 内容 |
 |------|------|
-| [**CHANGELOG.md**](CHANGELOG.md) | **版本记录（当前 v1.2.0）** |
+| [**CHANGELOG.md**](CHANGELOG.md) | **版本记录（当前 v1.3.0）** |
 | [**CATEMATE_V2_DESIGN_OVERVIEW.md**](docs/CATEMATE_V2_DESIGN_OVERVIEW.md) | V2 完整设计 |
 | [CATEMATE_V1_DESIGN_OVERVIEW.md](docs/CATEMATE_V1_DESIGN_OVERVIEW.md) | V1 架构（兼容链路） |
 | [PROJECT_LAYOUT.md](docs/PROJECT_LAYOUT.md) | 目录结构详解 |

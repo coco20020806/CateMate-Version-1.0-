@@ -1,0 +1,1204 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: CateMate API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: runs
+    description: Pipeline run management
+  - name: gates
+    description: Gate confirmation operations
+  - name: artifacts
+    description: Deliverable generation and download
+  - name: datasources
+    description: Data source catalog
+  - name: settings
+    description: System settings
+  - name: modules
+    description: Module capability catalog
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ── Run management ──────────────────────────────────────────────────────────
+  /runs:
+    get:
+      operationId: listRuns
+      tags: [runs]
+      summary: List all pipeline runs
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          schema:
+            type: ["string", "null"]
+          description: Search query (requirement text, case_id, keyword)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RunSummary"
+    post:
+      operationId: createRun
+      tags: [runs]
+      summary: Create and start a new pipeline run
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+
+  /runs/{runId}:
+    get:
+      operationId: getRun
+      tags: [runs]
+      summary: Get run detail with manifest
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/understanding:
+    get:
+      operationId: getUnderstanding
+      tags: [runs]
+      summary: Get structured requirement understanding spec
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnderstandingSpec"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/blueprint:
+    get:
+      operationId: getBlueprint
+      tags: [runs]
+      summary: Get report blueprint and analysis plan
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Blueprint"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/gaps:
+    get:
+      operationId: getGaps
+      tags: [runs]
+      summary: Get data gaps and missing coverage
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GapItem"
+
+  # ── Gate operations ──────────────────────────────────────────────────────────
+  /runs/{runId}/gates/category:
+    post:
+      operationId: confirmCategories
+      tags: [gates]
+      summary: "Gate A0: Confirm category selection"
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryConfirmationInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/gates/clarification:
+    post:
+      operationId: submitClarification
+      tags: [gates]
+      summary: "Gate A1/A2: Submit clarification answers"
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClarificationInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/gates/visual-spec:
+    post:
+      operationId: confirmVisualSpec
+      tags: [gates]
+      summary: "Gate C: Confirm visual report spec"
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VisualSpecConfirmInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Solve / generation ───────────────────────────────────────────────────────
+  /runs/{runId}/solve:
+    post:
+      operationId: triggerSolve
+      tags: [artifacts]
+      summary: Trigger solve loop to generate data workbook
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/brief:
+    get:
+      operationId: getBrief
+      tags: [artifacts]
+      summary: Get conclusion brief
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConclusionBrief"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: generateBrief
+      tags: [artifacts]
+      summary: Generate conclusion brief from workbook
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/visual-spec:
+    get:
+      operationId: getVisualSpec
+      tags: [artifacts]
+      summary: Get visual report spec
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisualReportSpec"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: generateVisualSpec
+      tags: [artifacts]
+      summary: Generate visual report spec
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/html-report:
+    post:
+      operationId: generateHtmlReport
+      tags: [artifacts]
+      summary: Generate HTML visual report
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/print-report:
+    post:
+      operationId: generatePrintReport
+      tags: [artifacts]
+      summary: Generate print-ready report (anonymized)
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Run"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /runs/{runId}/deliverables:
+    get:
+      operationId: getDeliverables
+      tags: [artifacts]
+      summary: List all deliverable artifacts for a run
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliverableSet"
+
+  # ── Stats (wow endpoints) ────────────────────────────────────────────────────
+  /runs/stats/summary:
+    get:
+      operationId: getRunStats
+      tags: [runs]
+      summary: Dashboard summary of runs by status
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunStats"
+
+  # ── Data sources ─────────────────────────────────────────────────────────────
+  /datasources:
+    get:
+      operationId: getDataSources
+      tags: [datasources]
+      summary: Get data source catalog
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataSourceCatalog"
+
+  /datasources/ingest:
+    post:
+      operationId: ingestDataSource
+      tags: [datasources]
+      summary: Ingest a new data source path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DataSourceIngestInput"
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataSourceEntry"
+
+  # ── Settings ─────────────────────────────────────────────────────────────────
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get system settings
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+    put:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update system settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemSettingsInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+
+  # ── Modules ───────────────────────────────────────────────────────────────────
+  /modules:
+    get:
+      operationId: listModules
+      tags: [modules]
+      summary: List all capability modules
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModuleInfo"
+
+# ── Schemas ───────────────────────────────────────────────────────────────────
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    # ── Run ───────────────────────────────────────────────────────────────────
+    RunStatus:
+      type: string
+      enum:
+        - awaiting_category_confirmation
+        - category_confirmed
+        - awaiting_clarification
+        - awaiting_rawdata_clarification
+        - clarification_completed
+        - solve_running
+        - data_workbook_generated
+        - brief_generated
+        - visual_spec_generated
+        - html_report_generated
+        - print_report_generated
+        - failed
+
+    PlanningMode:
+      type: string
+      enum:
+        - v2_solve_loop
+        - module_selection
+        - ai_direct
+
+    RunSummary:
+      type: object
+      required: [id, caseId, status, planningMode, requirementText, createdAt]
+      properties:
+        id:
+          type: string
+        caseId:
+          type: string
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        planningMode:
+          $ref: "#/components/schemas/PlanningMode"
+        requirementText:
+          type: string
+        site:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+        errorMessage:
+          type: ["string", "null"]
+
+    Run:
+      type: object
+      required: [id, caseId, status, planningMode, requirementText, createdAt]
+      properties:
+        id:
+          type: string
+        caseId:
+          type: string
+        status:
+          $ref: "#/components/schemas/RunStatus"
+        planningMode:
+          $ref: "#/components/schemas/PlanningMode"
+        requirementText:
+          type: string
+        site:
+          type: ["string", "null"]
+        category:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: ["string", "null"]
+        errorMessage:
+          type: ["string", "null"]
+        understanding:
+          $ref: "#/components/schemas/UnderstandingSpec"
+        clarifyingQuestions:
+          type: ["array", "null"]
+          items:
+            $ref: "#/components/schemas/ClarifyingQuestion"
+        deliverables:
+          $ref: "#/components/schemas/DeliverableSet"
+        solveProgress:
+          $ref: "#/components/schemas/SolveProgress"
+
+    RunInput:
+      type: object
+      required: [requirementText]
+      properties:
+        requirementText:
+          type: string
+          minLength: 10
+        planningMode:
+          $ref: "#/components/schemas/PlanningMode"
+
+    RunStats:
+      type: object
+      required: [total, byStatus, recentRuns]
+      properties:
+        total:
+          type: number
+        byStatus:
+          type: array
+          items:
+            type: object
+            required: [status, count]
+            properties:
+              status:
+                $ref: "#/components/schemas/RunStatus"
+              count:
+                type: number
+        recentRuns:
+          type: array
+          items:
+            $ref: "#/components/schemas/RunSummary"
+
+    # ── Understanding ─────────────────────────────────────────────────────────
+    CategoryCandidate:
+      type: object
+      required: [id, name, level, site]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        level:
+          type: string
+          description: "L1, L2, L3, etc."
+        site:
+          type: string
+        positioning:
+          type: ["string", "null"]
+        confidence:
+          type: ["number", "null"]
+        selected:
+          type: boolean
+
+    UnderstandingSpec:
+      type: object
+      required: [site, intent, timeRange, categories]
+      properties:
+        site:
+          type: string
+        intent:
+          type: string
+        timeRange:
+          type: string
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryCandidate"
+        assumptions:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        conceptPack:
+          type: array
+          items:
+            type: string
+          description: Sub-L3 concept terms
+        rawJson:
+          type: ["string", "null"]
+
+    ClarifyingQuestion:
+      type: object
+      required: [id, question, type]
+      properties:
+        id:
+          type: string
+        question:
+          type: string
+        type:
+          type: string
+          enum: [text, file_path, choice]
+        options:
+          type: ["array", "null"]
+          items:
+            type: string
+        answer:
+          type: ["string", "null"]
+        skipped:
+          type: boolean
+
+    # ── Gates ─────────────────────────────────────────────────────────────────
+    CategoryConfirmationInput:
+      type: object
+      required: [confirmedCategoryIds]
+      properties:
+        confirmedCategoryIds:
+          type: array
+          items:
+            type: string
+
+    ClarificationAnswer:
+      type: object
+      required: [questionId]
+      properties:
+        questionId:
+          type: string
+        answer:
+          type: ["string", "null"]
+        skipped:
+          type: boolean
+
+    ClarificationInput:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClarificationAnswer"
+
+    VisualSpecSection:
+      type: object
+      required: [id, title, visible]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        visible:
+          type: boolean
+        chartType:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    VisualReportSpec:
+      type: object
+      required: [sections, status]
+      properties:
+        status:
+          type: string
+          enum: [draft, confirmed]
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisualSpecSection"
+        rawJson:
+          type: ["string", "null"]
+
+    VisualSpecConfirmInput:
+      type: object
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisualSpecSection"
+
+    # ── Blueprint / Plan ──────────────────────────────────────────────────────
+    BlueprintChapter:
+      type: object
+      required: [id, title, modules]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        modules:
+          type: array
+          items:
+            type: string
+        metrics:
+          type: array
+          items:
+            type: string
+        scopeKind:
+          type: ["string", "null"]
+          enum: ["standard", "subset", "parent_l3", "comparison", null]
+
+    Blueprint:
+      type: object
+      required: [chapters]
+      properties:
+        chapters:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlueprintChapter"
+        verdict:
+          type: ["string", "null"]
+        rawJson:
+          type: ["string", "null"]
+
+    GapItem:
+      type: object
+      required: [id, type, description, severity]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [missing_data, unmet_intent, catalog_fail, low_coverage]
+        description:
+          type: string
+        severity:
+          type: string
+          enum: [high, medium, low]
+        affectedModule:
+          type: ["string", "null"]
+        suggestion:
+          type: ["string", "null"]
+
+    SolvePhase:
+      type: string
+      enum: [blueprint, plan, catalog, execute, verify, done]
+
+    SolveProgress:
+      type: object
+      required: [phase, completedPhases]
+      properties:
+        phase:
+          $ref: "#/components/schemas/SolvePhase"
+        completedPhases:
+          type: array
+          items:
+            $ref: "#/components/schemas/SolvePhase"
+        percentComplete:
+          type: ["number", "null"]
+        message:
+          type: ["string", "null"]
+
+    # ── Deliverables ──────────────────────────────────────────────────────────
+    DeliverableStatus:
+      type: string
+      enum: [not_started, generating, ready, failed]
+
+    DeliverableSet:
+      type: object
+      properties:
+        workbook:
+          $ref: "#/components/schemas/DeliverableRef"
+        brief:
+          $ref: "#/components/schemas/DeliverableRef"
+        htmlReport:
+          $ref: "#/components/schemas/DeliverableRef"
+        printReport:
+          $ref: "#/components/schemas/DeliverableRef"
+
+    DeliverableRef:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/DeliverableStatus"
+        path:
+          type: ["string", "null"]
+        downloadUrl:
+          type: ["string", "null"]
+        generatedAt:
+          type: ["string", "null"]
+
+    ConclusionBrief:
+      type: object
+      required: [markdown]
+      properties:
+        markdown:
+          type: string
+        keyFindings:
+          type: array
+          items:
+            type: string
+        generatedAt:
+          type: string
+
+    # ── Data sources ──────────────────────────────────────────────────────────
+    DataSourceEntry:
+      type: object
+      required: [id, category, type, status]
+      properties:
+        id:
+          type: string
+        grain:
+          type: string
+        tableId:
+          type: string
+        category:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+          enum: [available, missing, partial, raw_only, derived_or_folder, ingesting, error]
+        description:
+          type: string
+        expectedColumns:
+          type: array
+          items:
+            type: string
+        processedTableId:
+          type: string
+        processedPath:
+          type: ["string", "null"]
+        rawdataPath:
+          type: ["string", "null"]
+        rawdataExists:
+          type: boolean
+        rawdataFileCount:
+          type: number
+        rawdataFolderCount:
+          type: number
+        rawdataHasCsv:
+          type: boolean
+        rawdataCsvFileCount:
+          type: number
+        rawdataCsvFolderCount:
+          type: number
+        v2SourceRule:
+          type: string
+        sourceWorkbookName:
+          type: ["string", "null"]
+        sourceSheet:
+          type: ["string", "null"]
+        path:
+          type: ["string", "null"]
+        lastUpdated:
+          type: ["string", "null"]
+        rowCount:
+          type: ["number", "null"]
+        columnCount:
+          type: ["number", "null"]
+        usedByModules:
+          type: array
+          items:
+            type: string
+        resolutionMode:
+          type: ["string", "null"]
+        missingReason:
+          type: ["string", "null"]
+
+    RawdataTreeItem:
+      type: object
+      required: [name, path, kind, fileCount, folderCount, totalBytes]
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        kind:
+          type: string
+          enum: [file, directory]
+        fileCount:
+          type: number
+        folderCount:
+          type: number
+        totalBytes:
+          type: number
+        csvFileCount:
+          type: number
+        csvFolderCount:
+          type: number
+        csvTotalBytes:
+          type: number
+        hasCsv:
+          type: boolean
+        lastUpdated:
+          type: ["string", "null"]
+        csvLastUpdated:
+          type: ["string", "null"]
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/RawdataTreeItem"
+
+    RawdataTreeGroup:
+      type: object
+      required: [grain, path, exists, fileCount, folderCount, totalBytes, items]
+      properties:
+        grain:
+          type: string
+        path:
+          type: string
+        exists:
+          type: boolean
+        fileCount:
+          type: number
+        folderCount:
+          type: number
+        totalBytes:
+          type: number
+        csvFileCount:
+          type: number
+        csvFolderCount:
+          type: number
+        csvTotalBytes:
+          type: number
+        hasCsv:
+          type: boolean
+        lastUpdated:
+          type: ["string", "null"]
+        csvLastUpdated:
+          type: ["string", "null"]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RawdataTreeItem"
+
+    RawdataTree:
+      type: object
+      required: [groups]
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/RawdataTreeGroup"
+
+    DataSourceCatalog:
+      type: object
+      required: [entries, lastSynced]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DataSourceEntry"
+        rawdataRoot:
+          type: string
+        rawdataTree:
+          $ref: "#/components/schemas/RawdataTree"
+        lastSynced:
+          type: ["string", "null"]
+        summary:
+          type: object
+          required: [available, missing, total]
+          properties:
+            available:
+              type: number
+            missing:
+              type: number
+            partial:
+              type: number
+            rawOnly:
+              type: number
+            derivedOrFolder:
+              type: number
+            processed:
+              type: number
+            total:
+              type: number
+
+    DataSourceIngestInput:
+      type: object
+      required: [path, category, type]
+      properties:
+        path:
+          type: string
+        category:
+          type: string
+        type:
+          type: string
+          enum: [category, shop, item]
+
+    # ── Settings ──────────────────────────────────────────────────────────────
+    SystemSettings:
+      type: object
+      required: [provider, model, baseUrl, defaultPlanningMode]
+      properties:
+        provider:
+          type: string
+          enum: [deepseek, openai_compatible]
+        model:
+          type: string
+        baseUrl:
+          type: string
+        defaultPlanningMode:
+          $ref: "#/components/schemas/PlanningMode"
+        temperature:
+          type: ["number", "null"]
+        maxTokens:
+          type: ["number", "null"]
+        enabledModules:
+          type: array
+          items:
+            type: string
+        defaultTimeGranularity:
+          type: string
+          enum: [month, quarter, year]
+
+    SystemSettingsInput:
+      type: object
+      properties:
+        provider:
+          type: ["string", "null"]
+          enum: [deepseek, openai_compatible, null]
+        model:
+          type: ["string", "null"]
+        baseUrl:
+          type: ["string", "null"]
+        defaultPlanningMode:
+          type: ["string", "null"]
+        temperature:
+          type: ["number", "null"]
+        maxTokens:
+          type: ["number", "null"]
+        enabledModules:
+          type: ["array", "null"]
+          items:
+            type: string
+        defaultTimeGranularity:
+          type: ["string", "null"]
+
+    # ── Modules ───────────────────────────────────────────────────────────────
+    ModuleInfo:
+      type: object
+      required: [id, name, status, description]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, draft]
+        description:
+          type: string
+        metrics:
+          type: array
+          items:
+            type: string
+        applicableScenes:
+          type: array
+          items:
+            type: string
+        outputTables:
+          type: array
+          items:
+            type: string

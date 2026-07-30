@@ -17,6 +17,15 @@
     .narrative { line-height: 1.6; margin-bottom: 16px; }
     .chart-block { margin-bottom: 12px; border-top: 1px dashed #e3e6ea; padding-top: 12px; }
     .chart-block.secondary { opacity: 0.95; }
+    .chart-toolbar { margin: 0 0 8px; }
+    .chart-toolbar button {
+      border: 1px solid #d0d7de;
+      background: #f6f8fa;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
     .gaps { background: #fff8e6; border: 1px solid #f0d89a; border-radius: 8px; padding: 14px 16px; }
     .gaps h3 { margin: 0 0 8px; font-size: 1rem; }
     .gaps ul { margin: 0; padding-left: 20px; }
@@ -67,5 +76,45 @@
     </div>
     {% endif %}
   </div>
+  <script>
+  (function () {
+    function toggleLabels(btn, plotDiv) {
+      const next = btn.getAttribute("data-on") !== "1";
+      btn.setAttribute("data-on", next ? "1" : "0");
+      btn.textContent = next ? "隐藏数字" : "显示数字";
+      if (!plotDiv || !plotDiv.data) return;
+      for (let i = 0; i < plotDiv.data.length; i++) {
+        const t = plotDiv.data[i] || {};
+        if (t.type === "scatter") {
+          Plotly.restyle(plotDiv, {
+            mode: next ? "lines+markers+text" : "lines+markers",
+            textposition: "top center"
+          }, [i]);
+        } else if (t.type === "bar") {
+          Plotly.restyle(plotDiv, { textposition: next ? "auto" : "none" }, [i]);
+        } else if (t.type === "pie") {
+          Plotly.restyle(plotDiv, { textinfo: next ? "percent+label" : "none" }, [i]);
+        }
+      }
+    }
+
+    function injectToolbar(block) {
+      const plotDiv = block.querySelector(".js-plotly-plot");
+      if (!plotDiv) return;
+      if (block.querySelector(".chart-toolbar")) return;
+      const toolbar = document.createElement("div");
+      toolbar.className = "chart-toolbar";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "显示数字";
+      btn.setAttribute("data-on", "0");
+      btn.addEventListener("click", function () { toggleLabels(btn, plotDiv); });
+      toolbar.appendChild(btn);
+      block.insertBefore(toolbar, block.firstChild);
+    }
+
+    document.querySelectorAll(".chart-block").forEach(injectToolbar);
+  })();
+  </script>
 </body>
 </html>

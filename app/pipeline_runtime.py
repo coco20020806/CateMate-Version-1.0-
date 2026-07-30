@@ -14,6 +14,7 @@ PIPELINE_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "run_natural_language_requireme
 PPT_READY_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "build_ppt_ready_from_confirmed_workbook.py"
 CONCLUSION_BRIEF_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "build_conclusion_brief_from_data_workbook.py"
 HTML_REPORT_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "build_html_report_from_data_workbook.py"
+PRINT_REPORT_CLI_SCRIPT = PROJECT_ROOT / "scripts" / "build_print_report_from_visual_spec.py"
 
 PIPELINE_RUNTIME_MODULES = (
     "catemate.pipeline.runner",
@@ -252,3 +253,39 @@ def run_visual_report_subprocess(
 
     message = (proc.stderr or proc.stdout or "").strip() or "Visual report 生成失败。"
     return VisualReportSubprocessResult(exit_code=proc.returncode or 1, error_message=message)
+
+
+@dataclass
+class PrintReportSubprocessResult:
+    exit_code: int
+    case_id: str = ""
+    print_report_path: Path | None = None
+    print_report_doc_path: Path | None = None
+    error_message: str = ""
+
+
+def run_print_report_subprocess(
+    *,
+    pipeline_manifest_path: Path,
+) -> PrintReportSubprocessResult:
+    """Generate fuzzy print_vertical_report HTML from confirmed Visual Report Spec."""
+    cmd = [
+        sys.executable,
+        str(PRINT_REPORT_CLI_SCRIPT),
+        "--pipeline-manifest",
+        str(pipeline_manifest_path),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+    values = _parse_kv_output(proc.stdout or "")
+    if proc.returncode == 0:
+        html_raw = values.get("print_report")
+        doc_raw = values.get("print_report_doc")
+        return PrintReportSubprocessResult(
+            exit_code=0,
+            case_id=values.get("case_id", ""),
+            print_report_path=Path(html_raw) if html_raw else None,
+            print_report_doc_path=Path(doc_raw) if doc_raw else None,
+        )
+
+    message = (proc.stderr or proc.stdout or "").strip() or "Print report 生成失败。"
+    return PrintReportSubprocessResult(exit_code=proc.returncode or 1, error_message=message)

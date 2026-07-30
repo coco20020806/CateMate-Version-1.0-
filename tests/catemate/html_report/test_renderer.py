@@ -78,3 +78,6 @@ def test_render_html_report_writes_file(tmp_path: Path) -> None:
     assert "Analyze orders" in html
     assert "plotly" in html.lower()
     assert "Orders trend" in html
+    assert "显示数字" in html
+    assert "2026-05" in html
+    assert "2026-06" in html

@@ -35,6 +35,7 @@ from app.pipeline_runtime import (
     run_pipeline_continue_from_manifest_subprocess,
     run_pipeline_from_request_text_subprocess,
     run_ppt_ready_subprocess,
+    run_print_report_subprocess,
     run_visual_report_subprocess,
 )
 from app.visual_report_editor import render_visual_report_editor
@@ -359,6 +360,7 @@ def render_manifest_summary(manifest: PipelineManifest, manifest_path: Path | No
         ("HTML preview", display_path(manifest.html_preview_path)),
         ("Visual Report Spec", display_path(manifest_path_attr(manifest, "visual_report_spec_path"))),
         ("HTML 报告", display_path(manifest_path_attr(manifest, "html_report_path"))),
+        ("Print 汇报稿", display_path(manifest_path_attr(manifest, "print_report_path"))),
         ("结论简报 (Markdown)", display_path(manifest_path_attr(manifest, "conclusion_brief_path"))),
         ("结论简报 (JSON)", display_path(manifest_path_attr(manifest, "conclusion_brief_json_path"))),
     ]
@@ -1059,22 +1061,38 @@ def render_data_workbook_consume_section(manifest: PipelineManifest, manifest_pa
 
         spec = load_visual_report_spec(spec_path)
         if spec.spec_status == "confirmed":
-            if st.button("渲染 HTML 报告", type="primary", key="render_html_report"):
-                with st.spinner("正在渲染 HTML 报告..."):
-                    result = run_visual_report_subprocess(
-                        pipeline_manifest_path=manifest_path,
-                        mode="render",
-                    )
-                if result.exit_code != 0:
-                    st.error(result.error_message or "HTML 报告渲染失败。")
-                else:
-                    st.session_state[LAST_PIPELINE_MESSAGE_KEY] = (
-                        "success",
-                        "HTML 报告已生成。",
-                    )
-                    st.rerun()
+            col_render, col_print = st.columns(2)
+            with col_render:
+                if st.button("渲染 HTML 报告", type="primary", key="render_html_report"):
+                    with st.spinner("正在渲染 HTML 报告..."):
+                        result = run_visual_report_subprocess(
+                            pipeline_manifest_path=manifest_path,
+                            mode="render",
+                        )
+                    if result.exit_code != 0:
+                        st.error(result.error_message or "HTML 报告渲染失败。")
+                    else:
+                        st.session_state[LAST_PIPELINE_MESSAGE_KEY] = (
+                            "success",
+                            "HTML 报告已生成。",
+                        )
+                        st.rerun()
+            with col_print:
+                if st.button("生成 Print 汇报稿（模糊数值）", key="render_print_report"):
+                    with st.spinner("正在生成 Print Vertical Report（数值已模糊化）..."):
+                        result = run_print_report_subprocess(
+                            pipeline_manifest_path=manifest_path,
+                        )
+                    if result.exit_code != 0:
+                        st.error(result.error_message or "Print 汇报稿生成失败。")
+                    else:
+                        st.session_state[LAST_PIPELINE_MESSAGE_KEY] = (
+                            "success",
+                            "Print 汇报稿已生成（百分比/金额/单量已模糊化）。",
+                        )
+                        st.rerun()
         else:
-            st.info("请先确认 Visual Report Spec，再渲染 HTML 报告。")
+            st.info("请先确认 Visual Report Spec，再渲染 HTML 报告或 Print 汇报稿。")
 
     html_report_path = resolve_manifest_path(CATEMATE_ROOT, manifest_path_attr(manifest, "html_report_path"))
     if html_report_path and html_report_path.exists():
@@ -1085,6 +1103,22 @@ def render_data_workbook_consume_section(manifest: PipelineManifest, manifest_pa
             if st.button("在浏览器中打开", key="open_html_report_in_browser"):
                 if open_html_report_in_browser(html_report_path):
                     st.success("已在浏览器中打开 HTML 报告。")
+                else:
+                    st.warning("无法自动打开浏览器，请手动打开上方文件路径。")
+
+    print_report_path = resolve_manifest_path(CATEMATE_ROOT, manifest_path_attr(manifest, "print_report_path"))
+    if print_report_path and print_report_path.exists():
+        col_path, col_open = st.columns([4, 1])
+        with col_path:
+            st.markdown(f"- **Print 汇报稿**：`{display_path(str(print_report_path))}`")
+            st.caption(
+                "打开后可直接编辑文字；Ctrl+P / Command+P 另存为 PDF（建议 A4 横向）。"
+                "转 PPT 请先导出 PDF；含内部敏感数据时勿上传公开第三方转换站。"
+            )
+        with col_open:
+            if st.button("打开 Print 汇报稿", key="open_print_report_in_browser"):
+                if open_html_report_in_browser(print_report_path):
+                    st.success("已在浏览器中打开 Print 汇报稿。")
                 else:
                     st.warning("无法自动打开浏览器，请手动打开上方文件路径。")
 

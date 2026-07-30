@@ -43,6 +43,7 @@ class PipelineManifest:
     conclusion_brief_json_path: str | None = None
     visual_report_spec_path: str | None = None
     html_report_path: str | None = None
+    print_report_path: str | None = None
     subset_scope_dir: str | None = None
     sub_l3_filter_spec_path: str | None = None
     sub_l3_filter_rules_path: str | None = None
@@ -90,6 +91,7 @@ class PipelineManifest:
             "conclusion_brief_json_path",
             "visual_report_spec_path",
             "html_report_path",
+            "print_report_path",
             "subset_scope_dir",
             "sub_l3_filter_spec_path",
             "sub_l3_filter_rules_path",
@@ -206,6 +208,7 @@ def update_and_save_manifest(
     conclusion_brief_json_path: Path | str | None = None,
     visual_report_spec_path: Path | str | None = None,
     html_report_path: Path | str | None = None,
+    print_report_path: Path | str | None = None,
     subset_scope_dir: Path | str | None = None,
     sub_l3_filter_spec_path: Path | str | None = None,
     sub_l3_filter_rules_path: Path | str | None = None,
@@ -278,6 +281,9 @@ def update_and_save_manifest(
         html_report_path=path_for_manifest(html_report_path)
         if html_report_path is not None
         else (getattr(existing, "html_report_path", None) if existing else None),
+        print_report_path=path_for_manifest(print_report_path)
+        if print_report_path is not None
+        else (getattr(existing, "print_report_path", None) if existing else None),
         subset_scope_dir=path_for_manifest(subset_scope_dir)
         if subset_scope_dir is not None
         else (getattr(existing, "subset_scope_dir", None) if existing else None),
@@ -346,6 +352,7 @@ def register_subset_scope_artifacts(
         conclusion_brief_json_path=existing.conclusion_brief_json_path,
         visual_report_spec_path=existing.visual_report_spec_path,
         html_report_path=existing.html_report_path,
+        print_report_path=existing.print_report_path,
         subset_scope_dir=path_for_manifest(subset_dir),
         sub_l3_filter_spec_path=path_for_manifest(spec_path) if spec_path.exists() else existing.sub_l3_filter_spec_path,
         sub_l3_filter_rules_path=path_for_manifest(rules_path) if rules_path.exists() else existing.sub_l3_filter_rules_path,

@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from catemate.orchestration.module_registry import is_active_v2_module
 from catemate.ppt_ready.field_utils import (
     looks_like_gmv_orders_trend,
     price_range_sort_key,
@@ -76,6 +77,13 @@ SHARE_BAR_TOP = 10
 
 
 @dataclass
+class SiteTableTab:
+    site: str
+    headers: list[str]
+    rows: list[list[Any]]
+
+
+@dataclass
 class ChartPreviewSpec:
     chart_id: str
     title: str
@@ -86,6 +94,7 @@ class ChartPreviewSpec:
     preview_notes: list[str] = field(default_factory=list)
     sample_headers: list[str] = field(default_factory=list)
     sample_rows: list[list[Any]] = field(default_factory=list)
+    site_tabs: list[SiteTableTab] = field(default_factory=list)
     meta: dict[str, str] = field(default_factory=dict)
     hidden: bool = False
     replaced_by: str = ""
@@ -123,6 +132,7 @@ def choose_chart_config(sheet: PptReadySheetSpec, *, max_rows: int) -> ChartPrev
     }
     rows = _usable_rows(sheet.rows, max_rows=max_rows)
     sample_headers, sample_rows = render_table_sample(sheet, rows)
+    site_tabs = build_site_table_tabs(rows)
 
     base = ChartPreviewSpec(
         chart_id=sheet.chart_id,
@@ -132,6 +142,7 @@ def choose_chart_config(sheet: PptReadySheetSpec, *, max_rows: int) -> ChartPrev
         render_mode="table",
         sample_headers=sample_headers,
         sample_rows=sample_rows,
+        site_tabs=site_tabs,
         meta=meta,
     )
 
@@ -157,6 +168,11 @@ def choose_chart_config(sheet: PptReadySheetSpec, *, max_rows: int) -> ChartPrev
     if chart_type == "table":
         base.render_mode = "table"
         base.preview_notes.append("table chart_type: readable table preview only.")
+        if site_tabs:
+            base.preview_notes.append(
+                f"Table preview grouped by site ({len(site_tabs)} sites); "
+                f"up to {SAMPLE_TABLE_ROWS} rows per site."
+            )
         return base
 
     base.render_mode = "unsupported"
@@ -192,6 +208,7 @@ def deduplicate_redundant_trend_previews(
             source_sheets=sheet.source_sheets,
             chart_id=sheet.chart_id,
             chart_title=sheet.chart_title,
+            force_monthly=is_active_v2_module(sheet.data_module_id or ""),
         )
         if is_daily:
             continue
@@ -256,13 +273,48 @@ def render_table_sample(
         return [], []
     if "Price_Range_USD" in data[0]:
         data = sorted(data, key=lambda row: price_range_sort_key(row.get("Price_Range_USD")))
-    preferred = [c for c in TABLE_PREFERRED if c in data[0]]
-    extras = [k for k in data[0].keys() if k not in preferred and k != "builder_notes"]
-    headers = (preferred + extras)[:12]
+    headers = _table_headers_for_rows(data)
     sample = []
     for row in data[:SAMPLE_TABLE_ROWS]:
         sample.append([row.get(h) for h in headers])
     return headers, sample
+
+
+def _table_headers_for_rows(data: list[dict[str, Any]]) -> list[str]:
+    preferred = [c for c in TABLE_PREFERRED if c in data[0]]
+    extras = [k for k in data[0].keys() if k not in preferred and k != "builder_notes"]
+    return (preferred + extras)[:12]
+
+
+def build_site_table_tabs(rows: list[dict[str, Any]]) -> list[SiteTableTab]:
+    """Group table rows by site; keep up to SAMPLE_TABLE_ROWS per site."""
+    if not rows:
+        return []
+    available = set(rows[0].keys())
+    site_field = _first_present(SERIES_FIELDS, available)
+    if site_field is None:
+        return []
+
+    by_site: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for row in rows:
+        raw = row.get(site_field)
+        site = str(raw) if raw is not None and str(raw).strip() else "(blank)"
+        by_site[site].append(row)
+
+    if len(by_site) < 2:
+        return []
+
+    headers = _table_headers_for_rows(rows)
+    tabs: list[SiteTableTab] = []
+    for site in sorted(by_site.keys()):
+        site_rows = by_site[site]
+        if "Price_Range_USD" in site_rows[0]:
+            site_rows = sorted(
+                site_rows, key=lambda row: price_range_sort_key(row.get("Price_Range_USD"))
+            )
+        sample = [[row.get(h) for h in headers] for row in site_rows[:SAMPLE_TABLE_ROWS]]
+        tabs.append(SiteTableTab(site=site, headers=headers, rows=sample))
+    return tabs
 
 
 def _usable_rows(rows: list[dict[str, Any]], *, max_rows: int) -> list[dict[str, Any]]:
@@ -307,8 +359,51 @@ def _to_float(value: Any) -> float | None:
     return number
 
 
+def _parse_time_value(value: Any) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        pass
+    for fmt, size in (("%Y-%m-%d", 10), ("%Y/%m/%d", 10), ("%Y-%m", 7), ("%Y/%m", 7)):
+        try:
+            return datetime.strptime(text[:size], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _format_trend_x(value: Any, *, is_daily: bool) -> str:
+    """Format trend x labels so Plotly does not invent day/week ticks for monthly data."""
+    parsed = _parse_time_value(value)
+    if parsed is None:
+        return "" if value is None else str(value)
+    if is_daily:
+        return parsed.strftime("%Y-%m-%d")
+    return parsed.strftime("%Y-%m")
+
+
 def _sort_time_key(value: Any) -> str:
+    parsed = _parse_time_value(value)
+    if parsed is not None:
+        return parsed.strftime("%Y-%m-%d %H:%M:%S")
     return "" if value is None else str(value)
+
+
+def _format_metric_label(value: float) -> str:
+    if abs(value - round(value)) < 1e-9:
+        return f"{value:,.0f}"
+    if abs(value) >= 100:
+        return f"{value:,.0f}"
+    return f"{value:,.1f}"
 
 
 def _build_trend_preview(
@@ -324,6 +419,7 @@ def _build_trend_preview(
         source_sheets=sheet.source_sheets,
         chart_id=sheet.chart_id,
         chart_title=sheet.chart_title,
+        force_monthly=is_active_v2_module(sheet.data_module_id or ""),
     )
     x_field = _first_present(time_candidates, available)
     y_field = _first_present(Y_METRIC_FIELDS, available)
@@ -371,24 +467,34 @@ def _build_trend_preview(
         by_series[series].append((x_val, y_val))
 
     traces = []
+    category_labels: list[str] = []
+    seen_labels: set[str] = set()
     for series, values in by_series.items():
         values.sort(key=lambda item: _sort_time_key(item[0]))
         agg: dict[str, float] = defaultdict(float)
-        order: list[Any] = []
+        order_labels: list[str] = []
         for x_val, y_val in values:
-            key = _sort_time_key(x_val)
-            if key not in agg:
-                order.append(x_val)
-            agg[key] += y_val
+            label = _format_trend_x(x_val, is_daily=is_daily)
+            if label not in agg:
+                order_labels.append(label)
+            agg[label] += y_val
+            if label and label not in seen_labels:
+                seen_labels.add(label)
+                category_labels.append(label)
+        y_vals = [agg[label] for label in order_labels]
         traces.append(
             {
                 "type": "scatter",
                 "mode": "lines+markers",
                 "name": series,
-                "x": [str(v) if v is not None else "" for v in order],
-                "y": [agg[_sort_time_key(v)] for v in order],
+                "x": order_labels,
+                "y": y_vals,
+                "text": [_format_metric_label(v) for v in y_vals],
             }
         )
+
+    # Keep category order chronological across series.
+    category_labels.sort(key=_sort_time_key)
 
     if len(points) >= max_rows:
         base.preview_notes.append(f"Preview input limited to first {max_rows} rows.")
@@ -398,7 +504,12 @@ def _build_trend_preview(
         "data": traces,
         "layout": {
             "title": {"text": base.title, "x": 0.01},
-            "xaxis": {"title": x_field},
+            "xaxis": {
+                "title": x_field,
+                "type": "category",
+                "categoryorder": "array",
+                "categoryarray": category_labels,
+            },
             "yaxis": {"title": y_field},
             "margin": {"l": 60, "r": 20, "t": 50, "b": 60},
             "legend": {"orientation": "h"},
@@ -486,14 +597,34 @@ def _build_share_preview(
         if len(ranked) <= SHARE_PIE_LIMIT:
             base.render_mode = "pie"
             base.plotly_payload = {
-                "data": [{"type": "pie", "labels": labels, "values": values, "hole": 0.25, "sort": False}],
+                "data": [
+                    {
+                        "type": "pie",
+                        "labels": labels,
+                        "values": values,
+                        "hole": 0.25,
+                        "sort": False,
+                        "text": [_format_metric_label(v) for v in values],
+                        "textinfo": "none",
+                        "hovertemplate": "%{label}: %{value}<extra></extra>",
+                    }
+                ],
                 "layout": {"title": {"text": base.title, "x": 0.01}, "height": 400, "margin": {"t": 50}},
             }
         else:
             base.render_mode = "hbar"
             # Keep natural price order with low band at top.
             base.plotly_payload = {
-                "data": [{"type": "bar", "orientation": "h", "y": labels, "x": values}],
+                "data": [
+                    {
+                        "type": "bar",
+                        "orientation": "h",
+                        "y": labels,
+                        "x": values,
+                        "text": [_format_metric_label(v) for v in values],
+                        "textposition": "none",
+                    }
+                ],
                 "layout": {
                     "title": {"text": base.title, "x": 0.01},
                     "xaxis": {"title": metric_field if preview_computed else share_field},
@@ -507,7 +638,17 @@ def _build_share_preview(
         values = [v for _, v in ranked]
         base.render_mode = "pie"
         base.plotly_payload = {
-            "data": [{"type": "pie", "labels": labels, "values": values, "hole": 0.25}],
+            "data": [
+                {
+                    "type": "pie",
+                    "labels": labels,
+                    "values": values,
+                    "hole": 0.25,
+                    "text": [_format_metric_label(v) for v in values],
+                    "textinfo": "none",
+                    "hovertemplate": "%{label}: %{value}<extra></extra>",
+                }
+            ],
             "layout": {"title": {"text": base.title, "x": 0.01}, "height": 400, "margin": {"t": 50}},
         }
     else:
@@ -517,7 +658,16 @@ def _build_share_preview(
         values = [v for _, v in top] + ([other] if other > 0 else [])
         base.render_mode = "hbar"
         base.plotly_payload = {
-            "data": [{"type": "bar", "orientation": "h", "y": labels[::-1], "x": values[::-1]}],
+            "data": [
+                {
+                    "type": "bar",
+                    "orientation": "h",
+                    "y": labels[::-1],
+                    "x": values[::-1],
+                    "text": [_format_metric_label(v) for v in values[::-1]],
+                    "textposition": "none",
+                }
+            ],
             "layout": {
                 "title": {"text": base.title, "x": 0.01},
                 "xaxis": {"title": metric_field if preview_computed else share_field},
@@ -581,7 +731,16 @@ def _build_bar_preview(
     values = [v for _, v in ranked]
     base.render_mode = "bar"
     base.plotly_payload = {
-        "data": [{"type": "bar", "x": labels, "y": values, "name": y_field}],
+        "data": [
+            {
+                "type": "bar",
+                "x": labels,
+                "y": values,
+                "name": y_field,
+                "text": [_format_metric_label(v) for v in values],
+                "textposition": "none",
+            }
+        ],
         "layout": {
             "title": {"text": base.title, "x": 0.01},
             "xaxis": {"title": x_field, "tickangle": -30, "categoryorder": "array", "categoryarray": labels},
@@ -717,6 +876,39 @@ body {{
   font-size: 13px;
 }}
 .notes.warn {{ border-left-color: var(--warn); }}
+.chart-toolbar {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+}}
+.chart-toolbar button, .site-tabs button {{
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}}
+.chart-toolbar button:hover, .site-tabs button:hover {{
+  border-color: var(--accent);
+  color: var(--accent);
+}}
+.site-tabs {{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 10px;
+}}
+.site-tabs button.active {{
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #3730a3;
+}}
+.site-panel {{ display: none; }}
+.site-panel.active {{ display: block; }}
 .chart-box {{ width: 100%; min-height: 120px; }}
 .table-wrap {{ overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }}
 table.sample {{
@@ -733,6 +925,16 @@ table.sample th, table.sample td {{
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
+}}
+table.sample th.col-item_name,
+table.sample td.col-item_name {{
+  max-width: 480px;
+  min-width: 220px;
+  white-space: normal;
+  word-break: break-word;
+  overflow: visible;
+  text-overflow: unset;
+  vertical-align: top;
 }}
 table.sample th {{ background: #f1f5f9; position: sticky; top: 0; }}
 img.thumb {{
@@ -811,13 +1013,19 @@ def _render_section(preview: ChartPreviewSpec, index: int) -> str:
             f"或保留图 <code>{esc(preview.replaced_by)}</code>。</div>"
         )
     elif preview.render_mode in {"line", "pie", "bar", "hbar"} and preview.plotly_payload:
-        chart_html = f'<div class="chart-box" id="chart-{index}"></div>'
+        chart_html = (
+            f'<div class="chart-toolbar">'
+            f'<button type="button" class="label-toggle" data-chart="chart-{index}" data-on="0"'
+            f' onclick="window.cmToggleChartLabels(this)">显示数字</button>'
+            f"</div>"
+            f'<div class="chart-box" id="chart-{index}"></div>'
+        )
     elif preview.render_mode == "unsupported":
         chart_html = "<div class='notes warn'>本图未生成图表预览（unsupported / 无法选择字段）。</div>"
     else:
         chart_html = "<div class='notes'>本 section 使用表格预览。</div>"
 
-    table_html = _render_sample_table(preview)
+    table_html = _render_sample_table(preview, section_index=index)
     section_class = "section hidden-chart" if preview.hidden else "section"
     return f"""
 <section class="{section_class}" id="{esc(preview.chart_id)}">
@@ -841,22 +1049,52 @@ def _render_section(preview: ChartPreviewSpec, index: int) -> str:
 """
 
 
-def _render_sample_table(preview: ChartPreviewSpec) -> str:
+def _table_markup(headers: list[str], rows: list[list[Any]]) -> str:
+    head = "".join(
+        f'<th class="col-{esc(h)}">{esc(h)}</th>' for h in headers
+    )
+    body_rows = []
+    for row in rows:
+        cells = []
+        for header, value in zip(headers, row):
+            cells.append(f'<td class="col-{esc(header)}">{_cell_html(header, value)}</td>')
+        body_rows.append(f"<tr>{''.join(cells)}</tr>")
+    return (
+        f'<div class="table-wrap">'
+        f'<table class="sample"><thead><tr>{head}</tr></thead>'
+        f"<tbody>{''.join(body_rows)}</tbody></table></div>"
+    )
+
+
+def _render_sample_table(preview: ChartPreviewSpec, *, section_index: int) -> str:
+    if preview.site_tabs:
+        tab_buttons = []
+        panels = []
+        for tab_index, tab in enumerate(preview.site_tabs):
+            active = " active" if tab_index == 0 else ""
+            tab_id = f"site-{section_index}-{tab_index}"
+            tab_buttons.append(
+                f'<button type="button" class="site-tab{active}" data-target="{tab_id}" '
+                f'onclick="window.cmSwitchSiteTab(this)">{esc(tab.site)}</button>'
+            )
+            panels.append(
+                f'<div class="site-panel{active}" id="{tab_id}">'
+                f"{_table_markup(tab.headers, tab.rows)}</div>"
+            )
+        return f"""
+<details class="sample-block" open>
+  <summary>数据样例（按站点切换，每站最多 {SAMPLE_TABLE_ROWS} 行）</summary>
+  <div class="site-tabs">{"".join(tab_buttons)}</div>
+  {"".join(panels)}
+</details>
+"""
+
     if not preview.sample_headers:
         return ""
-    head = "".join(f"<th>{esc(h)}</th>" for h in preview.sample_headers)
-    body_rows = []
-    for row in preview.sample_rows:
-        cells = []
-        for header, value in zip(preview.sample_headers, row):
-            cells.append(f"<td>{_cell_html(header, value)}</td>")
-        body_rows.append(f"<tr>{''.join(cells)}</tr>")
     return f"""
 <details class="sample-block" open>
   <summary>数据样例（最多 {SAMPLE_TABLE_ROWS} 行）</summary>
-  <div class="table-wrap">
-    <table class="sample"><thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table>
-  </div>
+  {_table_markup(preview.sample_headers, preview.sample_rows)}
 </details>
 """
 
@@ -878,7 +1116,41 @@ def _cell_html(header: str, value: Any) -> str:
 
 
 def _render_plotly_bootstraps(previews: list[ChartPreviewSpec]) -> str:
-    clean = ["<script>"]
+    clean = [
+        "<script>",
+        """
+window.cmToggleChartLabels = function(btn) {
+  const chartId = btn.getAttribute('data-chart');
+  const gd = document.getElementById(chartId);
+  if (!gd || !gd.data) return;
+  const next = btn.getAttribute('data-on') !== '1';
+  btn.setAttribute('data-on', next ? '1' : '0');
+  btn.textContent = next ? '隐藏数字' : '显示数字';
+  for (let i = 0; i < gd.data.length; i++) {
+    const t = gd.data[i] || {};
+    if (t.type === 'scatter') {
+      Plotly.restyle(gd, {
+        mode: next ? 'lines+markers+text' : 'lines+markers',
+        textposition: next ? 'top center' : 'top center'
+      }, [i]);
+    } else if (t.type === 'bar') {
+      Plotly.restyle(gd, { textposition: next ? 'auto' : 'none' }, [i]);
+    } else if (t.type === 'pie') {
+      Plotly.restyle(gd, { textinfo: next ? 'percent+label' : 'none' }, [i]);
+    }
+  }
+};
+window.cmSwitchSiteTab = function(btn) {
+  const targetId = btn.getAttribute('data-target');
+  const wrap = btn.closest('details') || btn.parentElement.parentElement;
+  wrap.querySelectorAll('.site-tabs button').forEach((el) => el.classList.remove('active'));
+  wrap.querySelectorAll('.site-panel').forEach((el) => el.classList.remove('active'));
+  btn.classList.add('active');
+  const panel = document.getElementById(targetId);
+  if (panel) panel.classList.add('active');
+};
+""".strip(),
+    ]
     for index, preview in enumerate(previews):
         if not preview.plotly_payload:
             continue

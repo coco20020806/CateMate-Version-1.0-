@@ -4,6 +4,34 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.0] - 2026-07-30
+
+### Added
+
+- CateMate Workbench (`CateMate-Workbench/`): React + Express + Vite UI with run wizard, Understanding Summary, Solve progress, Visual Spec editor, datasources/modules/settings pages
+- FastAPI bridge (`api/catemate_api.py`): REST surface for runs, gates (category / clarification / visual-spec), solve, deliverables, settings, datasources, and file serving
+- One-command launcher `scripts/start_workbench.py` (FastAPI + Express + Vite); FastAPI port falls back from 8100 → 8101 when 8100 is busy
+- Print Vertical Report module (`catemate/print_report/`): consulting-style printable HTML after confirmed Visual Report Spec, with forced fuzzy percent/money/orders display
+- CLI `scripts/build_print_report_from_visual_spec.py`, manifest field `print_report_path`, Streamlit button「生成 Print 汇报稿（模糊数值）」
+- Tests for print report, ppt-ready HTML preview, HTML chart builders, and API datasource helpers
+
+### Fixed
+
+- Understanding Summary field mapping in the FastAPI bridge: `target_sites` / `analysis_intents` / top-level `assumptions` & `uncertainties` / `related_concept_pack` (no longer empty Site/Intent while only Time Range showed)
+- Workbench `category_confirmed` gap: continue into clarification via existing solve/continue path (align with Streamlit)
+- Windows Workbench install/start: corepack/pnpm launcher, Express 5 file route, Vite `/api` proxy, win32 native package overrides
+
+### Changed
+
+- README homepage documents Workbench as the recommended UI for v1.3.0; Streamlit remains compatible
+- HTML report / ppt-ready chart builders and preview enhancements for deliverable quality
+- Streamlit dashboard and pipeline runtime wire Print report as a post–Visual Spec step
+
+### Docs
+
+- README badges, V2 progress stage 7 (Workbench + FastAPI), Workbench start/architecture/capability section
+- `docs/AI_CORE_INDEX.md` updated for the bridge / Workbench surface
+
 ## [1.2.0] - 2026-07-27
 
 ### Added

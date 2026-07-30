@@ -37,9 +37,11 @@
 ### 消费层关键代码
 
 - `catemate/conclusion_brief/` — 结论简报
-- `catemate/html_report/` — Visual Report Spec + HTML 渲染
+- `catemate/html_report/` — Visual Report Spec + 精确数 HTML 渲染
+- `catemate/print_report/` — Print Vertical Report（咨询风可打印 HTML，强制模糊百分比/金额/单量）
 - `scripts/build_conclusion_brief_from_data_workbook.py`
 - `scripts/build_html_report_from_data_workbook.py`
+- `scripts/build_print_report_from_visual_spec.py`
 
 ### LLM 调用清单（流水线顺序）
 
@@ -55,7 +57,7 @@
 | 8 | Conclusion Brief | `conclusion_brief/generator.py` | workbook_digest + blueprint | `ConclusionBrief` |
 | 9 | Visual Report Spec | `html_report/proposal_generator.py` | digest + rule_bindings | `VisualReportSpec` |
 
-确定性步骤（无 LLM）：`compose_analysis_plan`、catalog check、`subset_precompute`、`execute_scope` / `if_related`、`data_modules` compute、`comparison_compute`、`solve_verifier`、HTML 渲染。
+确定性步骤（无 LLM）：`compose_analysis_plan`、catalog check、`subset_precompute`、`execute_scope` / `if_related`、`data_modules` compute、`comparison_compute`、`solve_verifier`、HTML 渲染、`print_report` 模糊打印稿。
 
 ---
 

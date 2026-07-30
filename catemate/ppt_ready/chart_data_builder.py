@@ -787,19 +787,7 @@ def _build_table_sheet(
 ) -> PptReadySheetSpec:
     work = df.copy()
     sort_field = first_existing(work, TABLE_SORT_FIELDS + list(chart.metrics))
-    if sort_field:
-        work[sort_field] = pd.to_numeric(work[sort_field], errors="coerce")
-        work = work.sort_values(by=sort_field, ascending=False, na_position="last")
-        notes.append(
-            f"Sorted by {sort_field} descending; limited to top {MAX_TABLE_ROWS} rows."
-        )
-        rule = (
-            f"table 类型按 {sort_field} 降序取 Top {MAX_TABLE_ROWS}；"
-            f"使用 table_id={table_id}"
-        )
-    else:
-        rule = f"table 类型输出前 {MAX_TABLE_ROWS} 行；使用 table_id={table_id}"
-        notes.append(f"No sort field found; limited to first {MAX_TABLE_ROWS} rows.")
+    site_field = first_existing(work, SITE_FIELDS)
 
     keep = []
     for col in TABLE_KEEP_FIELDS + list(chart.dimensions) + list(chart.metrics):
@@ -811,8 +799,53 @@ def _build_table_sheet(
         notes.append("Preferred table fields missing; kept first available columns.")
         missing_note = "preferred table fields missing; used first available columns"
 
+    if site_field and site_field in work.columns:
+        # Keep per-site tops so HTML site tabs are not dominated by one market.
+        if sort_field:
+            work[sort_field] = pd.to_numeric(work[sort_field], errors="coerce")
+            work = work.sort_values(
+                by=[site_field, sort_field],
+                ascending=[True, False],
+                na_position="last",
+            )
+            notes.append(
+                f"Sorted by {site_field} then {sort_field} descending; "
+                f"limited to top {MAX_TABLE_ROWS} rows per site."
+            )
+            rule = (
+                f"table 类型按站点保留 Top {MAX_TABLE_ROWS}；"
+                f"站内按 {sort_field} 降序；使用 table_id={table_id}"
+            )
+        else:
+            work = work.sort_values(by=[site_field], kind="mergesort")
+            notes.append(
+                f"Grouped by {site_field}; limited to first {MAX_TABLE_ROWS} rows per site."
+            )
+            rule = (
+                f"table 类型按站点输出前 {MAX_TABLE_ROWS} 行；使用 table_id={table_id}"
+            )
+        chunks: list[pd.DataFrame] = []
+        for _, site_df in work.groupby(site_field, sort=False):
+            chunks.append(site_df.head(MAX_TABLE_ROWS))
+        sample = pd.concat(chunks, ignore_index=True) if chunks else work.head(0)
+        sample = sample[keep] if keep else sample
+    elif sort_field:
+        work[sort_field] = pd.to_numeric(work[sort_field], errors="coerce")
+        work = work.sort_values(by=sort_field, ascending=False, na_position="last")
+        notes.append(
+            f"Sorted by {sort_field} descending; limited to top {MAX_TABLE_ROWS} rows."
+        )
+        rule = (
+            f"table 类型按 {sort_field} 降序取 Top {MAX_TABLE_ROWS}；"
+            f"使用 table_id={table_id}"
+        )
+        sample = work[keep].head(MAX_TABLE_ROWS)
+    else:
+        rule = f"table 类型输出前 {MAX_TABLE_ROWS} 行；使用 table_id={table_id}"
+        notes.append(f"No sort field found; limited to first {MAX_TABLE_ROWS} rows.")
+        sample = work[keep].head(MAX_TABLE_ROWS)
+
     # Evidence: count nulls in kept columns without inventing reasons beyond field presence.
-    sample = work[keep].head(MAX_TABLE_ROWS)
     null_bits: list[str] = []
     for col in keep:
         null_count = int(sample[col].isna().sum()) if col in sample.columns else 0

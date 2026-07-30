@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import pandas as pd
 import plotly.graph_objects as go
 
@@ -9,10 +11,56 @@ from catemate.html_report.schemas import ChartBinding
 
 MAX_TABLE_ROWS = 50
 MAX_SERIES = 20
+MONTHLY_X_FIELDS = {"grass_month", "month", "year_month"}
 
 
 def _to_numeric(series: pd.Series) -> pd.Series:
     return pd.to_numeric(series, errors="coerce")
+
+
+def _parse_time_value(value: object) -> datetime | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    if isinstance(value, datetime):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        pass
+    for fmt, size in (("%Y-%m-%d", 10), ("%Y/%m/%d", 10), ("%Y-%m", 7), ("%Y/%m", 7)):
+        try:
+            return datetime.strptime(text[:size], fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _format_trend_x(value: object, *, monthly: bool) -> str:
+    parsed = _parse_time_value(value)
+    if parsed is None:
+        return "" if value is None else str(value)
+    if monthly:
+        return parsed.strftime("%Y-%m")
+    return parsed.strftime("%Y-%m-%d")
+
+
+def _format_metric_label(value: float) -> str:
+    if abs(value - round(value)) < 1e-9:
+        return f"{value:,.0f}"
+    if abs(value) >= 100:
+        return f"{value:,.0f}"
+    return f"{value:,.1f}"
+
+
+def _is_monthly_x_field(field_name: str | None) -> bool:
+    if not field_name:
+        return False
+    return field_name.strip().lower() in MONTHLY_X_FIELDS
 
 
 def build_trend_figure(df: pd.DataFrame, binding: ChartBinding) -> go.Figure:
@@ -20,32 +68,45 @@ def build_trend_figure(df: pd.DataFrame, binding: ChartBinding) -> go.Figure:
         raise ValueError(f"Trend chart requires x_field and y_fields: {binding.chart_id}")
 
     work = df.copy()
-    work[binding.x_field] = work[binding.x_field].astype(str)
+    monthly = _is_monthly_x_field(binding.x_field)
+    work["_x_label"] = work[binding.x_field].map(lambda v: _format_trend_x(v, monthly=monthly))
     y_field = binding.y_fields[0]
     work[y_field] = _to_numeric(work[y_field])
 
     fig = go.Figure()
+    category_labels: list[str] = []
     if binding.series_field and binding.series_field in work.columns:
         series_values = work[binding.series_field].dropna().unique().tolist()[:MAX_SERIES]
         for series_value in series_values:
-            subset = work[work[binding.series_field] == series_value].sort_values(binding.x_field)
+            subset = work[work[binding.series_field] == series_value].copy()
+            subset = subset.sort_values(binding.x_field)
+            x_vals = subset["_x_label"].tolist()
+            y_vals = subset[y_field].tolist()
+            for label in x_vals:
+                if label and label not in category_labels:
+                    category_labels.append(label)
             fig.add_trace(
                 go.Scatter(
-                    x=subset[binding.x_field],
-                    y=subset[y_field],
+                    x=x_vals,
+                    y=y_vals,
                     mode="lines+markers",
                     name=str(series_value),
+                    text=[_format_metric_label(float(v)) if pd.notna(v) else "" for v in y_vals],
                 )
             )
     else:
-        grouped = work.groupby(binding.x_field, dropna=False)[y_field].sum(min_count=1).reset_index()
-        grouped = grouped.sort_values(binding.x_field)
+        grouped = work.groupby("_x_label", dropna=False)[y_field].sum(min_count=1).reset_index()
+        grouped = grouped.sort_values("_x_label")
+        x_vals = grouped["_x_label"].tolist()
+        y_vals = grouped[y_field].tolist()
+        category_labels = [label for label in x_vals if label]
         fig.add_trace(
             go.Scatter(
-                x=grouped[binding.x_field],
-                y=grouped[y_field],
+                x=x_vals,
+                y=y_vals,
                 mode="lines+markers",
                 name=y_field,
+                text=[_format_metric_label(float(v)) if pd.notna(v) else "" for v in y_vals],
             )
         )
 
@@ -56,6 +117,7 @@ def build_trend_figure(df: pd.DataFrame, binding: ChartBinding) -> go.Figure:
         template="plotly_white",
         height=420,
     )
+    fig.update_xaxes(type="category", categoryorder="array", categoryarray=category_labels)
     return fig
 
 
@@ -71,12 +133,15 @@ def build_bar_figure(df: pd.DataFrame, binding: ChartBinding) -> go.Figure:
     if binding.top_n:
         grouped = grouped.head(binding.top_n)
 
+    y_vals = grouped[y_field].tolist()
     fig = go.Figure(
         data=[
             go.Bar(
                 x=grouped[binding.x_field].astype(str),
-                y=grouped[y_field],
+                y=y_vals,
                 name=y_field,
+                text=[_format_metric_label(float(v)) if pd.notna(v) else "" for v in y_vals],
+                textposition="none",
             )
         ]
     )
@@ -106,12 +171,15 @@ def build_share_figure(df: pd.DataFrame, binding: ChartBinding) -> go.Figure:
     if binding.top_n:
         grouped = grouped.head(binding.top_n)
 
+    values = grouped[y_field].tolist()
     fig = go.Figure(
         data=[
             go.Pie(
                 labels=grouped[label_field].astype(str),
-                values=grouped[y_field],
+                values=values,
                 hole=0.3,
+                text=[_format_metric_label(float(v)) if pd.notna(v) else "" for v in values],
+                textinfo="none",
             )
         ]
     )
