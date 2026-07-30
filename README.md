@@ -317,49 +317,51 @@ flowchart TB
 
 ## V2 架构（主链路）
 
+**主链路不变：** Scope × Data Module 负责算数；**UI 可换：** Workbench（推荐）或 Streamlit；Workbook 之后 Brief / HTML / Print 为可选消费层。
+
 ```mermaid
-flowchart TB
-  subgraph ui [交互层]
-    ST[Streamlit Dashboard]
-    CE[澄清 / 类目确认]
-    VE[Visual Report 编辑器]
+flowchart LR
+  subgraph entry [入口]
+    WB[Workbench_推荐]
+    ST[Streamlit_兼容]
   end
 
-  subgraph cognition [AI 认知层]
-    UG[需求理解]
-    CP[Concept Pack]
-    SL[Solve Loop 编排]
-    BRIEF[Conclusion Brief]
-    VR[Visual Report Spec]
+  subgraph gates [人机门禁]
+    U[需求理解]
+    A0{{A0_类目}}
+    A1{{A1_澄清}}
+    A2{{A2_数据源}}
   end
 
-  subgraph data [数据层]
-    CAT[(rawdata category)]
-    SHOP[(rawdata shop)]
-    ITEM[(rawdata item)]
-    CATALOG[rawdata_catalog.yaml]
-  end
-
-  subgraph v2core [V2 核心_确定性]
+  subgraph solve [Solve_编排与算数]
+    BP[Blueprint_Plan]
     PRE[subset_precompute]
-    SC[Scope Executor]
-    DM[data_modules compute]
-    CMP[comparison_compute]
-    DWB[Data Workbook]
+    SC[Scope_取数]
+    DM[Module_compute]
+    DWB[Data_Workbook]
   end
 
-  ST --> UG --> CP --> SL
-  SL --> CATALOG
-  CATALOG --> CAT & SHOP & ITEM
-  SL --> PRE --> SC --> DM --> DWB
-  DM --> CMP --> DWB
-  CE --> SL
+  subgraph consume [可选消费]
+    BRIEF[Brief]
+    HTML[HTML_Report]
+    PRINT[Print_汇报稿]
+  end
+
+  WB --> U
+  ST --> U
+  U --> A0 --> A1 --> BP
+  BP --> PRE --> A2
+  A2 --> SC --> DM --> DWB
   DWB --> BRIEF
-  DWB --> VR --> VE
-  DWB --> ST
+  DWB --> HTML
+  DWB --> PRINT
+  DWB -.-> WB
+  DWB -.-> ST
 ```
 
-**与 V1 的关系：** V1 流程骨架（Streamlit、manifest、人工 gate）保留；V2 替换的是模块资产（YAML → Python）与编排方式（module selection → Solve Loop）。
+**读图提示：** 菱形节点（A0 / A1 / A2）需要人确认；中间 `Scope → Module → Workbook` 为确定性算数；虚线表示交付物回 UI 展示，不参与算数。
+
+**与 V1 的关系：** V1 流程骨架（manifest、人工 gate）保留；V2 替换的是模块资产（YAML → Python）与编排方式（module selection → Solve Loop）。v1.3.0 起推荐用 Workbench 操作同一条主链路。
 
 V1 架构参考 → [docs/CATEMATE_V1_DESIGN_OVERVIEW.md](docs/CATEMATE_V1_DESIGN_OVERVIEW.md)
 
