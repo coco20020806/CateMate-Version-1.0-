@@ -14,14 +14,8 @@ from data_modules.top_sku_info import ComputeParams, ScopedFrame, compute
 
 FIXTURES = ROOT / "tests" / "fixtures" / "data_modules" / "top_sku_info"
 
-WIRELESS = (
-    "Wireless Pet Water Fountain with Smart Sensor and Filter "
-    "for Cat and Dog 3.5L Stainless Steel"
-)
-DODO = (
-    "DODO 3.2L Cat Fountain Drinking Cat Water Dispenser All Stainless Steel "
-    "Automatic Circulating Filter Large Capacity"
-)
+DEMO_FOUNTAIN = "Demo Smart Pet Fountain"
+DEMO_DISPENSER = "Demo Smart Cat Water Dispenser"
 
 
 @pytest.fixture
@@ -41,10 +35,10 @@ def test_orders_top2(scoped_frame: ScopedFrame) -> None:
 
     assert len(table) == 2
     assert table.iloc[0]["rank"] == 1
-    assert table.iloc[0]["item_name"] == WIRELESS
+    assert table.iloc[0]["item_name"] == DEMO_FOUNTAIN
     assert table.iloc[0]["orders"] == 18.0
     assert table.iloc[1]["rank"] == 2
-    assert table.iloc[1]["item_name"] == DODO
+    assert table.iloc[1]["item_name"] == DEMO_DISPENSER
     assert table.iloc[1]["orders"] == 2.0
 
 
@@ -53,10 +47,10 @@ def test_gmv_top2(scoped_frame: ScopedFrame) -> None:
     table = result["top_sku_by_gmv_top2"]
 
     assert len(table) == 2
-    assert table.iloc[0]["item_name"] == WIRELESS
-    assert table.iloc[0]["gmv_usd"] == pytest.approx(345.06670564239994)
-    assert table.iloc[1]["item_name"] == DODO
-    assert table.iloc[1]["gmv_usd"] == pytest.approx(78.7475741558)
+    assert table.iloc[0]["item_name"] == DEMO_FOUNTAIN
+    assert table.iloc[0]["gmv_usd"] == pytest.approx(345.07)
+    assert table.iloc[1]["item_name"] == DEMO_DISPENSER
+    assert table.iloc[1]["gmv_usd"] == pytest.approx(78.75)
 
 
 def test_default_produces_six_tables(scoped_frame: ScopedFrame) -> None:

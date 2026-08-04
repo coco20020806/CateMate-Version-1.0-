@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">CateMate 合成数据演示流程</title><desc id="desc">自然语言需求经人工确认后，由确定性模块生成可审计分析交付物。</desc>
+  <style>text{font-family:Arial,'Microsoft YaHei',sans-serif;fill:#102a43}.title{font-size:28px;font-weight:700}.label{font-size:18px;font-weight:700}.detail{font-size:14px;fill:#486581}.box{stroke-width:2;rx:16}.arrow{stroke:#7b8794;stroke-width:3;marker-end:url(#a)}</style>
+  <defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#7b8794"/></marker></defs>
+  <rect width="1200" height="360" fill="#f7fafc"/><text x="60" y="62" class="title">CateMate：从需求到可审计分析交付</text>
+  <rect x="60" y="130" width="190" height="130" class="box" fill="#e6f6ff" stroke="#2b6cb0"/><text x="84" y="178" class="label">自然语言需求</text><text x="84" y="207" class="detail">趋势、选品、对比分析</text>
+  <line x1="250" y1="195" x2="315" y2="195" class="arrow"/>
+  <rect x="325" y="130" width="190" height="130" class="box" fill="#fff7e6" stroke="#c05621"/><text x="360" y="178" class="label">人工确认 Gate</text><text x="353" y="207" class="detail">类目、范围、假设</text>
+  <line x1="515" y1="195" x2="580" y2="195" class="arrow"/>
+  <rect x="590" y="130" width="220" height="130" class="box" fill="#edfdf3" stroke="#2f855a"/><text x="618" y="178" class="label">确定性 Solve Loop</text><text x="620" y="207" class="detail">Scope × Data Module</text>
+  <line x1="810" y1="195" x2="875" y2="195" class="arrow"/>
+  <rect x="885" y="112" width="255" height="166" class="box" fill="#f0f5ff" stroke="#5a67d8"/><text x="922" y="156" class="label">可审计交付物</text><text x="920" y="186" class="detail">Workbook · Manifest · Gaps</text><text x="920" y="212" class="detail">Brief · HTML 报告（可选）</text><text x="920" y="238" class="detail">数据来源与模块版本可追溯</text>
+</svg>

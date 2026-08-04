@@ -31,12 +31,12 @@ tables:
 
   - table_id: dashboard_daily_data
     grain: category
-    description: DECK Part 2 日度 Shopee / CNCB 数据
+    description: DECK Part 2 日度 Marketplace / CNCB 数据
     expected_columns:
       - grass_date
       - grass_region
-      - shopee_order(SUM)
-      - shopee_gmv_usd(SUM)
+      - marketplace_order(SUM)
+      - marketplace_gmv_usd(SUM)
     processed_table_id: dashboard_daily_data
     status: available
 

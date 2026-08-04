@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.3.0 - Portfolio release
+
+### Added
+- 招聘展示首页、合成数据 Demo 流程图与端到端可审计演示产物。
+- Windows PowerShell 一键 Demo 启动脚本、公开仓库敏感信息检查、开发依赖与 CI。
+
+### Supported modules
+- 当前公开 Demo 默认激活 `monthly_market_trend` 与 `top_sku_info`；其他模块保持草稿或扩展状态。
+
+### Known boundaries
+- 未覆盖的分析需求写入 Gaps；项目不会用 LLM 补写确定性数据结论。
+- 所有公开样例均为合成数据，不能用于实际经营判断。
+
 All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).

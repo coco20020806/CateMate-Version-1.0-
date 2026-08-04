@@ -57,15 +57,15 @@ tables:
       - 2026
     source_sheet: daily data
     output_csv: source_tables/dashboard_daily_data.csv
-    description: DECK Part 2 使用的日度 Shopee / CNCB / 广告 / 活动数据。
+    description: DECK Part 2 使用的日度 Marketplace / CNCB / 广告 / 活动数据。
     important_fields:
       - grass_date
       - grass_region
       - cb_level1_global_be_category
       - level2_global_be_category
       - level3_global_be_category
-      - shopee_order(SUM)
-      - shopee_gmv_usd(SUM)
+      - marketplace_order(SUM)
+      - marketplace_gmv_usd(SUM)
       - cncb_order(SUM)
       - cncb_gmv_usd(SUM)
     dedupe_keys:

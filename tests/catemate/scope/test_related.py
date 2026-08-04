@@ -51,14 +51,8 @@ SMART_PET_BOWL_PACK = RelatedConceptPack(
     min_score=0.55,
 )
 
-WIRELESS = (
-    "Wireless Pet Water Fountain with Smart Sensor and Filter for Cat and Dog "
-    "3.5L Stainless Steel"
-)
-DODO = (
-    "DODO 3.2L Cat Fountain Drinking Cat Water Dispenser All Stainless Steel "
-    "Automatic Circulating Filter Large Capacity"
-)
+DEMO_FOUNTAIN = "Demo Smart Pet Fountain"
+DEMO_DISPENSER = "Demo Smart Cat Water Dispenser"
 CHICKEN = (
     "Automatic Chicken Waterer Drinker Bowl for Poultry Quail Pigeon Bird Rabbit "
     "quantity 40pcs"
@@ -108,8 +102,8 @@ def sample_df() -> pd.DataFrame:
 def test_related_keeps_smart_fountain_and_dispenser(sample_df: pd.DataFrame) -> None:
     result = apply_if_related(sample_df, SMART_PET_BOWL_PACK)
     names = set(result["item_name"])
-    assert WIRELESS in names
-    assert DODO in names
+    assert DEMO_FOUNTAIN in names
+    assert DEMO_DISPENSER in names
 
 
 def test_related_excludes_chicken_and_slow_feeder(sample_df: pd.DataFrame) -> None:
@@ -131,13 +125,13 @@ def test_related_adds_diagnostic_columns(sample_df: pd.DataFrame) -> None:
 def test_related_dedup_scores_by_item_name() -> None:
     df = pd.DataFrame(
         {
-            "item_name": [WIRELESS, WIRELESS, DODO],
+            "item_name": [DEMO_FOUNTAIN, DEMO_FOUNTAIN, DEMO_DISPENSER],
             "orders": [1.0, 2.0, 3.0],
         }
     )
     result = apply_if_related(df, SMART_PET_BOWL_PACK)
     assert len(result) == 3
-    assert result.loc[result["item_name"] == WIRELESS, "related_score"].nunique() == 1
+    assert result.loc[result["item_name"] == DEMO_FOUNTAIN, "related_score"].nunique() == 1
 
 
 def test_related_skips_when_no_item_name_column() -> None:

@@ -1,22 +1,22 @@
 schema_version: data_module_v2
 module_id: dashboard_daily_cncb_performance
-module_name: Shopee/CNCB 表现
+module_name: Marketplace/CNCB 表现
 module_type: daily_performance
 status: deprecated
 owner: CateMate
 last_updated: "2026-07-09"
 
 business_purpose:
-  description: 基于品类看板 daily data 的 Shopee 与 CNCB 表现，含跨境渗透率、广告/活动/LPP/CFS 等渠道贡献；源数据为日度，默认按月聚合分析。
+  description: 基于品类看板 daily data 的 Marketplace 与 CNCB 表现，含跨境渗透率、广告/活动/LPP/CFS 等渠道贡献；源数据为日度，默认按月聚合分析。
   typical_questions:
-    - 用户明确提到 DECK Part 2 / Deck Part2 时的 CNCB 渗透、渠道或 Shopee/CNCB 表现？
+    - 用户明确提到 DECK Part 2 / Deck Part2 时的 CNCB 渗透、渠道或 Marketplace/CNCB 表现？
     - 某品类下最近一个月（或指定月份）各站点 CNCB GMV 渗透率/市场占有率是多少？
     - CNCB 占比、跨境卖家市场份额（按站点、按月）如何？
     - 某渠道（广告/活动/LPP/CFS）的 GMV 贡献或占比如何？（通常一次只问一个渠道）
-    - Shopee / CNCB GMV、Orders 的月度趋势如何？
+    - Marketplace / CNCB GMV、Orders 的月度趋势如何？
     - 最近一个月或最近 N 个月的跨境/本地市场表现对比？
     - sold SKUs / live SKUs 动销情况（当问题涉及 SKU 维度时）？
-    - 日度 Shopee / CNCB 趋势如何？（仅当问题含日度、daily、按天等关键词时）
+    - 日度 Marketplace / CNCB 趋势如何？（仅当问题含日度、daily、按天等关键词时）
   decision_support:
     - 跨境卖家市场占有率判断（按月、按站点）
     - 渠道投放效果（广告/活动/LPP/CFS 单独查看）
@@ -87,15 +87,15 @@ fields:
       role: category_l3
       required: false
   metrics:
-    - field: shopee_order(SUM)
-      meaning: Shopee 订单数
+    - field: marketplace_order(SUM)
+      meaning: Marketplace 订单数
       aggregation: sum
       default_axis: y
       derived: false
       derivation: null
       null_rule: null
-    - field: shopee_gmv_usd(SUM)
-      meaning: Shopee GMV（美元）
+    - field: marketplace_gmv_usd(SUM)
+      meaning: Marketplace GMV（美元）
       aggregation: sum
       default_axis: y
       derived: false
@@ -115,36 +115,36 @@ fields:
       derived: false
       derivation: null
       null_rule: null
-    - field: shopee_ads_gmv_usd(SUM)
+    - field: marketplace_ads_gmv_usd(SUM)
       meaning: 广告 GMV 贡献
       aggregation: sum
       default_axis: y
       derived: false
       derivation: null
       null_rule: null
-    - field: shopee_campaign_gmv_usd(SUM)
+    - field: marketplace_campaign_gmv_usd(SUM)
       meaning: 活动 GMV 贡献
       aggregation: sum
       default_axis: y
       derived: false
       derivation: null
       null_rule: null
-    - field: shopee_lpp_gmv_usd(SUM)
+    - field: marketplace_lpp_gmv_usd(SUM)
       meaning: LPP GMV 贡献
       aggregation: sum
       default_axis: y
       derived: false
       derivation: null
       null_rule: null
-    - field: shopee_cfs_gmv_usd(SUM)
+    - field: marketplace_cfs_gmv_usd(SUM)
       meaning: CFS GMV 贡献
       aggregation: sum
       default_axis: y
       derived: false
       derivation: null
       null_rule: null
-    - field: shopee_sold_skus(SUM)
-      meaning: Shopee 动销 SKU 数
+    - field: marketplace_sold_skus(SUM)
+      meaning: Marketplace 动销 SKU 数
       aggregation: sum
       default_axis: none
       derived: false
@@ -157,8 +157,8 @@ fields:
       derived: false
       derivation: null
       null_rule: null
-    - field: shopee_live_skus(SUM)
-      meaning: Shopee 在售 SKU 数
+    - field: marketplace_live_skus(SUM)
+      meaning: Marketplace 在售 SKU 数
       aggregation: sum
       default_axis: none
       derived: false
@@ -167,20 +167,20 @@ fields:
 
 derived_metrics:
   - metric_id: cncb_gmv_penetration
-    meaning: CNCB GMV 渗透率（CNCB GMV / Shopee GMV）
-    expression: cncb_gmv_usd(SUM) / shopee_gmv_usd(SUM)
+    meaning: CNCB GMV 渗透率（CNCB GMV / Marketplace GMV）
+    expression: cncb_gmv_usd(SUM) / marketplace_gmv_usd(SUM)
     required_fields:
       - cncb_gmv_usd(SUM)
-      - shopee_gmv_usd(SUM)
-    null_rule: shopee_gmv_usd(SUM) 为 0 或缺失时为空
+      - marketplace_gmv_usd(SUM)
+    null_rule: marketplace_gmv_usd(SUM) 为 0 或缺失时为空
 
 default_charts:
   - chart_intent: monthly_performance_trend
     default_chart_type: trend
-    title_template: "{category} 月度 Shopee/CNCB GMV 趋势"
+    title_template: "{category} 月度 Marketplace/CNCB GMV 趋势"
     x_axis: month
     y_axis:
-      - shopee_gmv_usd(SUM)
+      - marketplace_gmv_usd(SUM)
       - cncb_gmv_usd(SUM)
     series: grass_region
     dimensions:
@@ -206,14 +206,14 @@ default_charts:
     dedupe_group: null
     notes:
       - 默认取数据最新一个月，除非用户明确指定月份
-      - y 轴为站点（by site）；x 为 CNCB 渗透率 = cncb_gmv_usd(SUM) / shopee_gmv_usd(SUM)
+      - y 轴为站点（by site）；x 为 CNCB 渗透率 = cncb_gmv_usd(SUM) / marketplace_gmv_usd(SUM)
       - 100% 横向柱图：每个柱子等长，颜色区分 CNCB 与非 CNCB 部分
   - chart_intent: ads_gmv_share_by_site
     default_chart_type: bar
     title_template: "{category} 各站点广告 GMV 占比（{month}）"
     x_axis: grass_region
     y_axis:
-      - shopee_ads_gmv_usd(SUM)
+      - marketplace_ads_gmv_usd(SUM)
     series: null
     dimensions:
       - grass_region
@@ -228,7 +228,7 @@ default_charts:
     title_template: "{category} 各站点活动 GMV 占比（{month}）"
     x_axis: grass_region
     y_axis:
-      - shopee_campaign_gmv_usd(SUM)
+      - marketplace_campaign_gmv_usd(SUM)
     series: null
     dimensions:
       - grass_region
@@ -243,7 +243,7 @@ default_charts:
     title_template: "{category} 各站点 LPP GMV 占比（{month}）"
     x_axis: grass_region
     y_axis:
-      - shopee_lpp_gmv_usd(SUM)
+      - marketplace_lpp_gmv_usd(SUM)
     series: null
     dimensions:
       - grass_region
@@ -258,7 +258,7 @@ default_charts:
     title_template: "{category} 各站点 CFS GMV 占比（{month}）"
     x_axis: grass_region
     y_axis:
-      - shopee_cfs_gmv_usd(SUM)
+      - marketplace_cfs_gmv_usd(SUM)
     series: null
     dimensions:
       - grass_region
@@ -273,9 +273,9 @@ default_charts:
     title_template: "{category} 月度 SKU 动销趋势"
     x_axis: month
     y_axis:
-      - shopee_sold_skus(SUM)
+      - marketplace_sold_skus(SUM)
       - cncb_sold_skus(SUM)
-      - shopee_live_skus(SUM)
+      - marketplace_live_skus(SUM)
     series: grass_region
     dimensions:
       - month
@@ -316,7 +316,7 @@ planning_hints:
     - 用户明确提到 DECK Part 2 / Deck Part2 / daily data（强命中信号）
     - 用户问 CNCB 占比、渗透率、跨境市场占有率（按站点、按月）
     - 用户问某单一渠道（广告/活动/LPP/CFS）的 GMV 贡献或占比
-    - 用户问最近一个月或最近 N 个月的 Shopee/CNCB 表现
+    - 用户问最近一个月或最近 N 个月的 Marketplace/CNCB 表现
     - 典型需求：某品类下最新一个月各站点 CNCB 渗透率（100% 横向柱，by site）
     - 用户问 SKU 动销（sold SKUs / live SKUs）
     - 用户明确提到日度、daily、按天趋势

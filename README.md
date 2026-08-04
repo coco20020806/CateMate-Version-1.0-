@@ -1,5 +1,57 @@
 # CateMate
 
+> 面向品类分析的可审计 AI 工作台：把自然语言需求转化为可确认、可追溯的 Data Workbook 分析流水线。
+
+[![CI](https://github.com/coco20020806/CateMate/actions/workflows/ci.yml/badge.svg)](https://github.com/coco20020806/CateMate/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB)](requirements-dev.txt)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](CHANGELOG.md)
+
+![CateMate 合成数据演示流程](docs/demo/demo-flow.svg)
+
+## 30 秒了解 CateMate
+
+- **业务需求可确认**：将自然语言需求拆成类目、范围、假设和分析意图，并通过人工 Gate 确认。
+- **数字计算可验证**：LLM 只负责理解与编排；Scope 与已登记的 Data Module 负责确定性取数和计算。
+- **交付结果可审计**：输出 Data Workbook、运行 manifest 与 Gaps；未覆盖需求会明确标注，而非编造结果。
+
+**公开数据声明：** 本仓库全部示例类目、商品、站点、指标及链接均为合成演示数据；不含雇主生产数据、内部数据或真实经营数据。
+
+### 合成数据 Demo
+
+复制下面的需求，在 Workbench 中体验完整路径：
+
+```text
+分析 PH 宠物配件类目中“智能喂食器”相关商品最近三个月的 GMV 与订单趋势，并输出头部 SKU 供选品参考。
+```
+
+流程为：**自然语言需求 → Gate A0/A1 人工确认 → Scope × Data Module 确定性计算 → Data Workbook / Brief / HTML 报告**。详细输入、输出和 Gaps 示例见 [docs/demo/README.md](docs/demo/README.md)。
+
+### 三步启动（推荐 Workbench）
+
+前置条件：Windows PowerShell、Python 3.11+、Node.js（含 Corepack）。首次运行执行：
+
+```powershell
+git clone https://github.com/coco20020806/CateMate.git
+cd CateMate
+.\scripts\run_demo.ps1
+```
+
+脚本会创建 `.venv`、安装依赖、导入合成数据并启动 Workbench。随后访问 `http://localhost:5173`。如依赖已安装，可使用 `.\scripts\run_demo.ps1 -SkipInstall`。
+
+### 质量检查
+
+公开仓库不含机密 `CateMate_rawdata`。CI / 快速检查请跑：
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q tests/test_public_demo_smoke.py tests/data_modules tests/catemate/scope/test_related.py tests/catemate/scope/test_if_related_e2e.py
+.\.venv\Scripts\python.exe scripts\validate_v3_data_modules.py
+.\.venv\Scripts\python.exe scripts\check_public_repo.py
+```
+
+本地放入真实 rawdata 后，可再跑全量 `pytest -q`。
+
+---
+
 > 面向 **Category Analysis** 的 AI 辅助工作流 Demo — 把自然语言需求，转成可确认、可追溯、可审计的 **Data Workbook** 分析流水线。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)

@@ -1,4 +1,4 @@
-"""daily_cncb_performance — Shopee/CNCB GMV or orders by site×month."""
+"""daily_cncb_performance — Marketplace/CNCB GMV or orders by site×month."""
 
 from __future__ import annotations
 
@@ -14,8 +14,8 @@ COL_MONTH = "month"
 COL_GRASS_MONTH = "grass_month"
 COL_DATE = "grass_date"
 
-COL_SHOPEE_GMV = "shopee_gmv_usd(SUM)"
-COL_SHOPEE_ORDER = "shopee_order(SUM)"
+COL_MARKETPLACE_GMV = "marketplace_gmv_usd(SUM)"
+COL_MARKETPLACE_ORDER = "marketplace_order(SUM)"
 COL_CNCB_GMV = "cncb_gmv_usd(SUM)"
 COL_CNCB_ORDER = "cncb_order(SUM)"
 
@@ -26,11 +26,11 @@ MetricId = Literal["gmv", "orders"]
 METRIC_SPECS: dict[str, dict[str, Any]] = {
     "gmv": {
         "table_id": "gmv_by_site_month",
-        "value_columns": (COL_SHOPEE_GMV, COL_CNCB_GMV),
+        "value_columns": (COL_MARKETPLACE_GMV, COL_CNCB_GMV),
     },
     "orders": {
         "table_id": "orders_by_site_month",
-        "value_columns": (COL_SHOPEE_ORDER, COL_CNCB_ORDER),
+        "value_columns": (COL_MARKETPLACE_ORDER, COL_CNCB_ORDER),
     },
 }
 

@@ -239,7 +239,7 @@ v2 对应关系：
 |-----------|----------|
 | `rm_monthly_category_performance` | 长时间窗口类目月度趋势 |
 | `dashboard_history_market_trend` | DECK Part 1 市场历史趋势 |
-| `dashboard_daily_cncb_performance` | 日度 Shopee/CNCB 表现 |
+| `dashboard_daily_cncb_performance` | 日度 Marketplace/CNCB 表现 |
 | `dashboard_price_tier_distribution` | 价格段分布与对比 |
 | `dashboard_top_shop` | Top Shop 排名 |
 | `dashboard_keywords` | 热门关键词 |

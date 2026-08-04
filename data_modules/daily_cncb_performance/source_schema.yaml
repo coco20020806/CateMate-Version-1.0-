@@ -19,9 +19,9 @@ compute_rules:
   metrics:
     gmv:
       table_id: gmv_by_site_month
-      source_columns: [shopee_gmv_usd(SUM), cncb_gmv_usd(SUM)]
+      source_columns: [marketplace_gmv_usd(SUM), cncb_gmv_usd(SUM)]
       aggregate: sum
     orders:
       table_id: orders_by_site_month
-      source_columns: [shopee_order(SUM), cncb_order(SUM)]
+      source_columns: [marketplace_order(SUM), cncb_order(SUM)]
       aggregate: sum

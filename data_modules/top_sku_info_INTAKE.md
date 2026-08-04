@@ -283,9 +283,9 @@
 
 | grass_month | grass_region | item_name（缩写） | orders | gmv_usd | item_link |
 |-------------|--------------|-------------------|--------|---------|-----------|
-| 2026-06-01 | PH | Wireless Pet Water Fountain… | 18.0 | 345.07 | shopee.ph/…/51111240917 |
-| 2026-06-01 | PH | DODO 3.2L Cat Fountain… | 2.0 | 78.75 | shopee.ph/…/25532335819 |
-| 2026-06-01 | PH | Automatic Chicken Waterer… | 0.333 | 0.844 | shopee.ph/…/51761600086 |
+| 2026-06-01 | PH | Wireless Pet Water Fountain… | 18.0 | 345.07 | demo.marketplace.example/…/51111240917 |
+| 2026-06-01 | PH | DODO 3.2L Cat Fountain… | 2.0 | 78.75 | demo.marketplace.example/…/25532335819 |
+| 2026-06-01 | PH | Automatic Chicken Waterer… | 0.333 | 0.844 | demo.marketplace.example/…/51761600086 |
 
 （完整 `item_name` / `item_link` 以源 CSV 为准；fixture 可保留源文件表头全部列。）
 

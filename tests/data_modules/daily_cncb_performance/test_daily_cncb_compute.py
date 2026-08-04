@@ -18,9 +18,9 @@ def test_gmv_by_site_month() -> None:
         {
             "grass_region": ["SG", "SG", "MY"],
             "month": ["2025-01-01", "2025-01-01", "2025-01-01"],
-            "shopee_gmv_usd(SUM)": [100, 200, 50],
+            "marketplace_gmv_usd(SUM)": [100, 200, 50],
             "cncb_gmv_usd(SUM)": [10, 20, 5],
-            "shopee_order(SUM)": [1, 2, 1],
+            "marketplace_order(SUM)": [1, 2, 1],
             "cncb_order(SUM)": [1, 1, 0],
         }
     )
@@ -28,7 +28,7 @@ def test_gmv_by_site_month() -> None:
     result = compute(ComputeParams(metric_id="gmv"), frame)["gmv_by_site_month"]
 
     sg = result[result["grass_region"] == "SG"].iloc[0]
-    assert sg["shopee_gmv_usd(SUM)"] == 300
+    assert sg["marketplace_gmv_usd(SUM)"] == 300
     assert sg["cncb_gmv_usd(SUM)"] == 30
     assert result.attrs["metric_id"] == "gmv"
 
@@ -38,9 +38,9 @@ def test_orders_by_site_month() -> None:
         {
             "grass_region": ["SG"],
             "grass_date": ["2025-02-10"],
-            "shopee_order(SUM)": [3],
+            "marketplace_order(SUM)": [3],
             "cncb_order(SUM)": [2],
-            "shopee_gmv_usd(SUM)": [0],
+            "marketplace_gmv_usd(SUM)": [0],
             "cncb_gmv_usd(SUM)": [0],
         }
     )
@@ -48,17 +48,17 @@ def test_orders_by_site_month() -> None:
     result = compute(ComputeParams(metric_id="orders"), frame)["orders_by_site_month"]
 
     assert len(result) == 1
-    assert result.iloc[0]["shopee_order(SUM)"] == 3
+    assert result.iloc[0]["marketplace_order(SUM)"] == 3
     assert result.iloc[0]["cncb_order(SUM)"] == 2
 
 
 def test_rejects_missing_gmv_columns() -> None:
     frame = ScopedFrame(
         data=pd.DataFrame(
-            {"grass_region": ["SG"], "month": ["2025-01-01"], "shopee_order(SUM)": [1]}
+            {"grass_region": ["SG"], "month": ["2025-01-01"], "marketplace_order(SUM)": [1]}
         ),
         scope_label="test",
         scope_spec={},
     )
-    with pytest.raises(ValueError, match="shopee_gmv_usd"):
+    with pytest.raises(ValueError, match="marketplace_gmv_usd"):
         compute(ComputeParams(metric_id="gmv"), frame)

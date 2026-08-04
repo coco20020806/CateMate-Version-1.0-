@@ -1,6 +1,6 @@
 schema_version: data_module_v3
 module_id: daily_cncb_performance
-module_name: Shopee/CNCB 表现
+module_name: Marketplace/CNCB 表现
 module_type: daily_performance
 status: draft
 owner: CateMate

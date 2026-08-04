@@ -71,4 +71,4 @@ def test_scope_if_related_top_sku_info_pipeline() -> None:
     frame = ScopedFrame(data=related, scope_label="PH / smart_pet_bowl")
     tables = compute(ComputeParams(top_n=2, sort_by="both"), frame)
     assert "top_sku_by_orders_top2" in tables
-    assert tables["top_sku_by_orders_top2"].iloc[0]["item_name"].startswith("Wireless")
+    assert tables["top_sku_by_orders_top2"].iloc[0]["item_name"].startswith("Demo")

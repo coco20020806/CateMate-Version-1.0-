@@ -205,17 +205,17 @@
 - `cb_level1_global_be_category`
 - `level2_global_be_category`
 - `level3_global_be_category`
-- `shopee_order(SUM)`
-- `shopee_gmv_usd(SUM)`
+- `marketplace_order(SUM)`
+- `marketplace_gmv_usd(SUM)`
 - `cncb_order(SUM)`
 - `cncb_gmv_usd(SUM)`
-- `shopee_ads_gmv_usd(SUM)`
-- `shopee_campaign_gmv_usd(SUM)`
-- `shopee_lpp_gmv_usd(SUM)`
-- `shopee_cfs_gmv_usd(SUM)`
-- `shopee_sold_skus(SUM)`
+- `marketplace_ads_gmv_usd(SUM)`
+- `marketplace_campaign_gmv_usd(SUM)`
+- `marketplace_lpp_gmv_usd(SUM)`
+- `marketplace_cfs_gmv_usd(SUM)`
+- `marketplace_sold_skus(SUM)`
 - `cncb_sold_skus(SUM)`
-- `shopee_live_skus(SUM)`
+- `marketplace_live_skus(SUM)`
 
 主要用途：
 
@@ -354,8 +354,8 @@
 
 - 来源 sheet：`daily data`
 - 处理规则：
-  - 按类目和站点聚合 Shopee GMV / CNCB GMV。
-  - 计算跨境卖家市场占有率：`cncb_gmv_usd / shopee_gmv_usd`。
+  - 按类目和站点聚合 Marketplace GMV / CNCB GMV。
+  - 计算跨境卖家市场占有率：`cncb_gmv_usd / marketplace_gmv_usd`。
 - 可描述：
   - 跨境卖家占比
   - CNCB 在该类目/市场的渗透情况

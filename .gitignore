@@ -13,7 +13,7 @@ env/
 
 # Runtime logs and ephemeral run dirs
 logs/
-runs/
+/runs/
 .pytest_cache/
 
 # Local-only private notes and assets (never publish)

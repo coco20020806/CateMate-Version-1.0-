@@ -29,8 +29,8 @@ X_TIME_FIELDS = ["grass_month", "year_month", "month", "date", "grass_date"]
 Y_METRIC_FIELDS = [
     "gmv_usd",
     "orders",
-    "shopee_gmv_usd(SUM)",
-    "shopee_order(SUM)",
+    "marketplace_gmv_usd(SUM)",
+    "marketplace_order(SUM)",
     "cncb_gmv_usd(SUM)",
     "cncb_order(SUM)",
     "ADG",

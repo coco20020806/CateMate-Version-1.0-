@@ -12,7 +12,7 @@
 
 ## 元信息（module_name / module_type / last_updated）
 
-- [已采纳] `module_name` 去掉 DECK Part 2 前缀，改为「Shopee/CNCB 表现」
+- [已采纳] `module_name` 去掉 DECK Part 2 前缀，改为「Marketplace/CNCB 表现」
 
 ---
 

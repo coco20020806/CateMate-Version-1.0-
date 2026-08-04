@@ -57,8 +57,8 @@ CateMate v1 必须遵守以下规则：
 
 HKCB Collectible Category Insight 需求中，提需方给出的前台类目是：
 
-- Shopee > Games, Books & Hobbies > Hobby Toys > Action Figures
-- Shopee > Toys, Games & Collectibles > Character > Movies & Anime
+- Marketplace > Games, Books & Hobbies > Hobby Toys > Action Figures
+- Marketplace > Toys, Games & Collectibles > Character > Movies & Anime
 
 但当前 SPH 类目树和 Raw data 中更接近的后台类目是：
 

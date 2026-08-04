@@ -18,7 +18,7 @@ business_purpose:
     - 站点扩张或收缩判断
     - 月度趋势与季节性判断
   not_suitable_for:
-    - 日度 Shopee/CNCB 渗透与广告贡献（请用 dashboard_daily_cncb_performance）
+    - 日度 Marketplace/CNCB 渗透与广告贡献（请用 dashboard_daily_cncb_performance）
     - 价格段分布（请用 dashboard_price_tier_distribution）
     - Top Shop / 关键词 / Top Listing 榜单分析
 
